@@ -17,6 +17,24 @@ AAStarPathGrid::AAStarPathGrid()
 	SetRootComponent(SceneRoot);
 }
 
+void AAStarPathGrid::OnConstruction(const FTransform& Transform)
+{
+	ContructionIInitializeGrid();
+}
+
+void AAStarPathGrid::BeginPlay()
+{
+	Super::BeginPlay();
+	if (DrawNodesSphere)
+		ReDrawEditorDebugNodeSphere();
+}
+
+
+void AAStarPathGrid::ContructionIInitializeGrid()
+{
+	UpdateNodeValidPath();
+}
+
 void AAStarPathGrid::RefreshPathFinding()
 {
 	GenerateGrid();
@@ -39,24 +57,6 @@ UAStarNode* AAStarPathGrid::GetClosestNode(FVector Position) const
 	}
 
 	return OutNode;
-}
-
-void AAStarPathGrid::OnConstruction(const FTransform& Transform)
-{
-	ContructionIInitializeGrid();
-}
-
-void AAStarPathGrid::BeginPlay()
-{
-	Super::BeginPlay();
-	if (DrawNodesSphere)
-		ReDrawEditorDebugNodeSphere();
-}
-
-
-void AAStarPathGrid::ContructionIInitializeGrid()
-{
-	UpdateNodeValidPath();
 }
 
 void AAStarPathGrid::SpawnNode(const FVector& Point)
@@ -96,16 +96,16 @@ void AAStarPathGrid::ConnectNeighbour()
 			FIntVector(1, 0, 0), FIntVector(-1, 0, 0),
 			FIntVector(0, 1, 0), FIntVector(0, -1, 0),
 			FIntVector(0, 0, 1), FIntVector(0, 0, -1),
-			FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
-			FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
-			FIntVector(0, 1, 1), FIntVector(0, -1, 1),
-			FIntVector(0, 1, -1), FIntVector(0, -1, -1),
-			FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
-			FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
-			FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
-			FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
-			FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
-			FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
+			//FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
+			//FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
+			//FIntVector(0, 1, 1), FIntVector(0, -1, 1),
+			//FIntVector(0, 1, -1), FIntVector(0, -1, -1),
+			//FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
+			//FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
+			//FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
+			//FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
+			//FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
+			//FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
 			};
 
 		//const TArray<FIntVector> DiagonalNeighborOffsets = {
@@ -146,7 +146,7 @@ bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)
 		WorldLocation,
 		FQuat::Identity,
 		ECollisionChannel::ECC_Visibility,
-		FCollisionShape::MakeSphere(TraceRadius),
+		FCollisionShape::MakeBox(FVector3f(GridSize.X/SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z)),
 		CollisionParams
 	);
 
@@ -165,13 +165,10 @@ void AAStarPathGrid::UpdateNodeValidPath()
 
 void AAStarPathGrid::GenerateGrid()
 {
-	if (!IsGeneratingGrid) {
+	if (!m_IsGeneratingGrid) {
 
-		IsGeneratingGrid = true;
-		//int XValuePlus = UKismetMathLibrary::Max(0, (SpacingBetweenNode.X - 1));
-		//int YValuePlus = UKismetMathLibrary::Max(0, (SpacingBetweenNode.Y - 1));
-		//int ZValuePlus = UKismetMathLibrary::Max(0, (SpacingBetweenNode.Z - 1));
-
+		m_IsGeneratingGrid = true;
+		
 		for (auto Node : NodeList) {
 			if (Node)
 				Node->DestroyComponent();
@@ -190,13 +187,12 @@ void AAStarPathGrid::GenerateGrid()
 
 
 		ConnectNeighbour();
-
 		ReDrawEditorDebugNodeSphere();
 
-		IsGeneratingGrid = false;
+		m_IsGeneratingGrid = false;
 
+		GeneratedNode = NodeList.Num();
 	}
-
 }
 
 
@@ -224,8 +220,7 @@ void AAStarPathGrid::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 
 void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 {
-	//if (GEngine && GEngine->IsEditor())
-	//{
+
 	UWorld* World = GetWorld();
 
 
@@ -237,14 +232,15 @@ void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 			for (const UAStarNode* N : NodeList) {
 				if (N) {
 					if (N->InvalidPath)
-						DrawDebugSphere(World, N->GetComponentLocation(), TraceRadius, 2.0f, FColor::Red, true, -1, 0, 2);
+						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
 					else
-						DrawDebugSphere(World, N->GetComponentLocation(), TraceRadius, 2.0f, FColor::Green, true, -1, 0, 2);
+						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
+
 				}
 			}
 		}
 	}
-	//}
+
 }
 
 void AAStarPathGrid::ClearEditorDebugNodeSphere()

@@ -18,12 +18,12 @@ class ASpaceShooter_3DCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AIAgent, meta = (AllowPrivateAccess = "true"))
-	UAStarAgentComponent* AgentComponent;
-
-
 public:
 	ASpaceShooter_3DCharacter();
+
+public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AIAgent, meta = (AllowPrivateAccess = "true"))
+	UAStarAgentComponent* AgentComponent;
 	
 			
 

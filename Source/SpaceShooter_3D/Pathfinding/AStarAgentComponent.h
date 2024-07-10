@@ -17,6 +17,8 @@ enum class  EPathfindingStatus : uint8 {
 
 };
 
+class ASpaceShooter_3DCharacter;
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class SPACESHOOTER_3D_API UAStarAgentComponent : public UActorComponent
 {
@@ -37,12 +39,17 @@ protected:
 
 private:
 	TArray<FVector> ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList);
-	void AgentMove(TArray<FVector>& Path);
+	void AgentMove();
+
 private:	
 	
+	TArray<FVector> m_Path;
 	TObjectPtr<AAStarPathGrid> m_PathGrid;
 	EPathfindingStatus m_AgentStatus = EPathfindingStatus::None;
 	
 	FTimerHandle m_PathFindingHandle;
-		
+
+	 TObjectPtr<ASpaceShooter_3DCharacter> m_Agent;
+	
+
 };

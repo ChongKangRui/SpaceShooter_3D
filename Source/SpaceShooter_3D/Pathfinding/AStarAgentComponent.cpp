@@ -5,6 +5,8 @@
 #include "AStarPathGrid.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "Character/SpaceShooter_3DCharacter.h"
+
 
 // Sets default values for this component's properties
 UAStarAgentComponent::UAStarAgentComponent()
@@ -38,7 +40,7 @@ void UAStarAgentComponent::BeginPlay()
 	}
 
 	m_PathGrid = BestPathGrid;
-
+	m_Agent = Cast<ASpaceShooter_3DCharacter>(GetOwner());
 
 }
 
@@ -57,8 +59,6 @@ TArray<FVector> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, co
 		CurrentNodeData = *EndNodeData;
 	else
 		UE_LOG(LogTemp, Error, TEXT("Invalid goal end node"));
-
-	//Path.Add(Goal.GetLocation());
 
 	while (CurrentNodeData.CameFrom)
 	{
@@ -81,37 +81,68 @@ TArray<FVector> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, co
 	return Path;
 }
 
-void UAStarAgentComponent::AgentMove(TArray<FVector>& Path)
+void UAStarAgentComponent::AgentMove()
 {
-	if (Path.Num() == 0) return;
-	
+	if (m_Path.Num() == 0) { 
+		m_AgentStatus = EPathfindingStatus::Success;
+		return; 
+	}
 
-	FVector NextWaypoint = Path[0];
-	Path.RemoveAt(0);
+	if (!m_Agent->GetController()) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Agent Controller"));
+		return;
+	}
+	
+	m_AgentStatus = EPathfindingStatus::InProgress;
 
 	//ToDo: make a better movement function like using FInterp
-	//Right now should use debug line to show the path
 
+	FVector AgentLocation = m_Agent->GetActorLocation();
+
+	FVector NextWaypoint = m_Path[0];
+	FVector AgentNewPosition = AgentLocation + (m_Agent->GetActorForwardVector() * 10.0f);
+
+	FVector DirectionToTarget = NextWaypoint - AgentLocation;
+	FVector DirectionToTargetNormalize = DirectionToTarget.GetSafeNormal();
+
+	float YawRadian = FMath::Atan2(DirectionToTargetNormalize.Y, DirectionToTargetNormalize.X);
+	float YawAngle = FMath::RadiansToDegrees(YawRadian);
+
+	float PitchRadian = FMath::Atan2(DirectionToTargetNormalize.Z, FVector(DirectionToTargetNormalize.X, DirectionToTargetNormalize.Y, 0).Size());
+	float PitchAngle = FMath::RadiansToDegrees(PitchRadian);
+
+	FRotator TargetRotation = FRotator(PitchAngle, YawAngle,0 );
+	FRotator AgentNewRotation = FMath::RInterpTo(m_Agent->GetActorRotation(),
+		TargetRotation, GetWorld()->GetDeltaSeconds(), 10.0f);
+
+
+	m_Agent->SetActorLocation(AgentNewPosition);
+	m_Agent->GetController()->SetControlRotation(AgentNewRotation);
+
+
+	if (FVector::Dist(AgentLocation, NextWaypoint) <= 50.0f) {
+		m_Path.RemoveAt(0);
+	}
+	
 	FTimerDelegate MoveDelegate;
-	MoveDelegate.BindWeakLambda(this, [&Path]()
+	MoveDelegate.BindWeakLambda(this, [&]()
 	{
-			
+		AgentMove();
 	});
-	
 
-	if (Path.Num() > 0)
-	{
-	
-	}
-	else
-	{
-		m_AgentStatus = EPathfindingStatus::Success;
-		UE_LOG(LogTemp, Error, TEXT("Path following complete"));
-	}
+	//FTimerDelegate MoveDelegate;
+	//MoveDelegate.BindUFunction(this, FName("AgentMove"));
+
+	GetWorld()->GetTimerManager().SetTimer(m_PathFindingHandle, MoveDelegate, GetWorld()->GetDeltaSeconds(), false);
 }
 
 void UAStarAgentComponent::MoveTo(FVector Goal)
 {
+	if (!m_Agent) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Agent Reference"));
+		return;
+	}
+
 	if (!m_PathGrid) {
 		UE_LOG(LogTemp, Error, TEXT("Invalid Path Grid Ref"));
 		return;
@@ -125,23 +156,24 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 
 	if (StartNode == GoalNode) {
 		m_AgentStatus = EPathfindingStatus::Failed;
-		UE_LOG(LogTemp, Error, TEXT("failed both same"));
+		UE_LOG(LogTemp, Error, TEXT("failed to move, start node == goal node or Both node invalid"));
 		return;
 	}
+
+	DrawDebugSphere(GetWorld(), StartNode->GetComponentLocation(), 100.0f, 2.0f, FColor::Blue, true, 10.0f, 0, 2);
+	DrawDebugSphere(GetWorld(), GoalNode->GetComponentLocation(), 100.0f, 2.0f, FColor::Purple, true, 10.0f, 0, 2);
 
 	GetWorld()->GetTimerManager().ClearTimer(m_PathFindingHandle);
 
 	TArray<FAStarNodeData> OpenList;
 	TArray<FAStarNodeData> ClosedList;
 
-	OpenList.Add(FAStarNodeData(StartNode));
-
-	FAStarNodeData CurrentNodeData = OpenList[0];
-
-	UE_LOG(LogTemp, Error, TEXT("Hey start loop"));
+	FAStarNodeData CurrentNodeData(StartNode);
 
 	CurrentNodeData.gCost = 0;
 	CurrentNodeData.hCost = FVector::Dist(StartNode->GetComponentLocation(), GoalNode->GetComponentLocation());
+
+	OpenList.Add(FAStarNodeData(CurrentNodeData));
 
 	while (OpenList.Num() > 0) {
 
@@ -149,6 +181,14 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 		OpenList.HeapPop(Current, true);
 
 		ClosedList.Add(Current);
+
+		if (Current.Node == GoalNode)
+		{
+			m_Path = ReconstructPath(GoalNode, ClosedList);
+			AgentMove();
+			//m_AgentStatus = EPathfindingStatus::Success;
+			return;
+		}
 
 		if (Current.IsValidNode()) {
 
@@ -166,7 +206,7 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 
 				float NewGCost = Current.gCost + FVector::Dist(Current.GetLocation(), NeighbourData.GetLocation()) + Neighbor->cost;
 
-				if (NewGCost < NeighbourData.gCost || !OpenList.Contains(Neighbor))
+				if (NewGCost < NeighbourData.gCost)
 				{
 
 					NeighbourData.gCost = NewGCost;
@@ -185,7 +225,8 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 	UE_LOG(LogTemp, Error, TEXT("Success Path Finding end %i"), ClosedList.Num());
 	
 
-	ReconstructPath(GoalNode,ClosedList);
+	//m_Path = ReconstructPath(GoalNode,ClosedList);
+	//AgentMove();
 }
 
 EPathfindingStatus UAStarAgentComponent::GetAgentStatus() const

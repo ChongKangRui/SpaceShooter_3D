@@ -97,18 +97,20 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	UAStarNode* GetClosestNode(FVector Position) const;
-	//TArray<FVector> FindPath(AAStarNode* StartPoint, AAStarNode* EndNode);
-
+	
 
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Setting")
+	int GeneratedNode = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
 	FVector GridSize = {20,20,20};
-
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
 	FIntVector SpacingBetweenNode = {5,3,2};
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
-	float TraceRadius = 20.0f;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
+	//float TraceRadius = 20.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting | Debug")
 	bool DrawNodesSphere = false;
@@ -119,7 +121,7 @@ public:
 //	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	//TMap<FVector, FAStarNodeData> Grid;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly)
 	TArray<TObjectPtr<UAStarNode>> NodeList;
 
 protected:
@@ -145,7 +147,7 @@ private:
 	void UpdateNodeValidPath();
 
 private:
-	bool IsGeneratingGrid = false;
+	bool m_IsGeneratingGrid = false;
 
 	
 
