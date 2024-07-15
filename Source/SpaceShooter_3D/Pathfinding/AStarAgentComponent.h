@@ -13,8 +13,6 @@ enum class  EPathfindingStatus : uint8 {
 	InProgress,
 	Failed,
 	Success
-
-
 };
 
 class ASpaceShooter_3DCharacter;
@@ -33,23 +31,31 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	EPathfindingStatus GetAgentStatus() const;
+
+	UFUNCTION(BlueprintPure)
+	AAStarPathGrid* GetGridReference() const;
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float RotationSpeed = 10.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float FlyingSpeed = 1000.0f;
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
 private:
-	TArray<FVector> ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList);
+	TArray<FAStarNodeData> ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList);
 	void AgentMove();
 
 private:	
 	
-	TArray<FVector> m_Path;
+	TArray<FAStarNodeData> m_Path;
 	TObjectPtr<AAStarPathGrid> m_PathGrid;
 	EPathfindingStatus m_AgentStatus = EPathfindingStatus::None;
 	
 	FTimerHandle m_PathFindingHandle;
 
-	 TObjectPtr<ASpaceShooter_3DCharacter> m_Agent;
-	
-
+	TObjectPtr<ASpaceShooter_3DCharacter> m_Agent;
 };

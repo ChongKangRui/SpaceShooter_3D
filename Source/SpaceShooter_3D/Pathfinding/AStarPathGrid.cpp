@@ -25,8 +25,17 @@ void AAStarPathGrid::OnConstruction(const FTransform& Transform)
 void AAStarPathGrid::BeginPlay()
 {
 	Super::BeginPlay();
-	if (DrawNodesSphere)
-		ReDrawEditorDebugNodeSphere();
+
+	if (DrawUpdate > 0.0f) {
+		FTimerDelegate MoveDelegate;
+		FTimerHandle Handle;
+		MoveDelegate.BindWeakLambda(this, [&]()
+			{
+				ReDrawEditorDebugNodeSphere();
+			});
+
+		GetWorld()->GetTimerManager().SetTimer(Handle, MoveDelegate, DrawUpdate, true);
+	}
 }
 
 
@@ -45,7 +54,7 @@ UAStarNode* AAStarPathGrid::GetClosestNode(FVector Position) const
 	float ShortestDistance = FLT_MAX;
 	UAStarNode* OutNode = nullptr;
 	for (UAStarNode* Node : NodeList) {
-		if (Node && !Node->InvalidPath) {
+		if (Node && !Node->CheckIsNodeInvalid()) {
 			float CurrentDist = FVector::Dist(Position, Node->GetComponentLocation());
 			if (CurrentDist < ShortestDistance) {
 				OutNode = Node;
@@ -57,6 +66,27 @@ UAStarNode* AAStarPathGrid::GetClosestNode(FVector Position) const
 	}
 
 	return OutNode;
+}
+
+FVector AAStarPathGrid::GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange)
+{
+	TArray<FVector> Range;
+
+	for (UAStarNode* N : NodeList) {
+		if (N && !N->CheckIsNodeInvalid()) {
+			float Distance = FVector::Dist(N->GetComponentLocation(), Center);
+			if (Distance >= MinimumRange && Distance <= MaximumRange) {
+				Range.Add(N->GetComponentLocation());
+			}
+		}
+	}
+
+	if (Range.IsEmpty()) {
+		return FVector();
+	}
+
+	int RandomArrayIndex = UKismetMathLibrary::RandomIntegerInRange(0, Range.Num() - 1);
+	return Range[RandomArrayIndex];
 }
 
 void AAStarPathGrid::SpawnNode(const FVector& Point)
@@ -71,7 +101,9 @@ void AAStarPathGrid::SpawnNode(const FVector& Point)
 		NewNode->Point = FIntVector(Point);
 		NewNode->AttachToComponent(SceneRoot, FAttachmentTransformRules::KeepRelativeTransform);
 		NewNode->SetRelativeLocation(NodeLocation);
-		NewNode->InvalidPath = CheckNodeCollision(NewNode->GetComponentLocation());
+		if (CheckNodeCollision(NewNode->GetComponentLocation())) {
+			NewNode->Status = ENodeStatus::InvalidPath;
+		}
 
 		NodeList.AddUnique(NewNode);
 
@@ -96,16 +128,16 @@ void AAStarPathGrid::ConnectNeighbour()
 			FIntVector(1, 0, 0), FIntVector(-1, 0, 0),
 			FIntVector(0, 1, 0), FIntVector(0, -1, 0),
 			FIntVector(0, 0, 1), FIntVector(0, 0, -1),
-			//FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
-			//FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
-			//FIntVector(0, 1, 1), FIntVector(0, -1, 1),
-			//FIntVector(0, 1, -1), FIntVector(0, -1, -1),
-			//FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
-			//FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
-			//FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
-			//FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
-			//FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
-			//FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
+			FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
+			FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
+			FIntVector(0, 1, 1), FIntVector(0, -1, 1),
+			FIntVector(0, 1, -1), FIntVector(0, -1, -1),
+			FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
+			FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
+			FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
+			FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
+			FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
+			FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
 			};
 
 		//const TArray<FIntVector> DiagonalNeighborOffsets = {
@@ -156,8 +188,9 @@ bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)
 void AAStarPathGrid::UpdateNodeValidPath()
 {
 	for (auto Node : NodeList) {
-		if (Node)
-			Node->InvalidPath = CheckNodeCollision(Node->GetComponentLocation());
+		if (CheckNodeCollision(Node->GetComponentLocation())) {
+			Node->Status = ENodeStatus::InvalidPath;
+		}
 	}
 	ReDrawEditorDebugNodeSphere();
 
@@ -184,7 +217,6 @@ void AAStarPathGrid::GenerateGrid()
 			}
 
 		}
-
 
 		ConnectNeighbour();
 		ReDrawEditorDebugNodeSphere();
@@ -223,7 +255,6 @@ void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 
 	UWorld* World = GetWorld();
 
-
 	if (World)
 	{
 		ClearEditorDebugNodeSphere();
@@ -231,8 +262,11 @@ void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 		if (DrawNodesSphere) {
 			for (const UAStarNode* N : NodeList) {
 				if (N) {
-					if (N->InvalidPath)
+					if (N->CheckIsNodeInvalid())
 						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
+					else if (N->CheckIsNodeOccupied()) {
+						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Blue, true, -1, 0, 2);
+					}
 					else
 						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
 

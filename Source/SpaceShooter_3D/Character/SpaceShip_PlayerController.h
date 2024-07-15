@@ -22,6 +22,8 @@ public:
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* p) override;
 	
+	float GetCurrentPitchValue() const;
+	float GetCurrentYawValue() const;
 public:
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -47,9 +49,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* SpeedingAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	float SmoothNegateAxisValue = 0.1f;
 private:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void StopLook();
 
 	void StartSpeeding();
 	void StopSpeeding();
@@ -58,6 +63,10 @@ private:
 	FVector ForwardBackDirection() const;
 
 private:
-	class ASpaceShooter_Player* player;
+	class ASpaceShooter_Player* m_Player;
 
+	FTimerHandle m_SmoothNegateRotation;
+
+	float m_PitchValue = 0;
+	float m_YawValue = 0;
 };

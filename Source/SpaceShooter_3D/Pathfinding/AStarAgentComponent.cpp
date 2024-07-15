@@ -44,9 +44,9 @@ void UAStarAgentComponent::BeginPlay()
 
 }
 
-TArray<FVector> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList)
+TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList)
 {
-	TArray<FVector> Path;
+	TArray<FAStarNodeData> Path;
 
 	auto EndNodeData = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
 		return NodeData.Node == Goal;
@@ -62,7 +62,7 @@ TArray<FVector> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, co
 
 	while (CurrentNodeData.CameFrom)
 	{
-		Path.Insert(CurrentNodeData.GetLocation(), 0); // Insert at the beginning
+		Path.Insert(CurrentNodeData, 0); // Insert at the beginning
 		auto NodeRef = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
 			return NodeData.Node == CurrentNodeData.CameFrom;
 			});
@@ -74,7 +74,7 @@ TArray<FVector> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, co
 	}
 
 	for (int i = 1; i < Path.Num();i++) {
-		DrawDebugLine(GetWorld(), Path[i - 1], Path[i], FColor::Red, false, 10.0f);
+		DrawDebugLine(GetWorld(), Path[i - 1].GetLocation(), Path[i].GetLocation(), FColor::Red, false, 10.0f);
 	}
 	
 
@@ -99,8 +99,8 @@ void UAStarAgentComponent::AgentMove()
 
 	FVector AgentLocation = m_Agent->GetActorLocation();
 
-	FVector NextWaypoint = m_Path[0];
-	FVector AgentNewPosition = AgentLocation + (m_Agent->GetActorForwardVector() * 10.0f);
+	FVector NextWaypoint = m_Path[0].GetLocation();
+	FVector AgentNewPosition = AgentLocation + (m_Agent->GetActorForwardVector() * FlyingSpeed * GetWorld()->GetDeltaSeconds());
 
 	FVector DirectionToTarget = NextWaypoint - AgentLocation;
 	FVector DirectionToTargetNormalize = DirectionToTarget.GetSafeNormal();
@@ -111,17 +111,25 @@ void UAStarAgentComponent::AgentMove()
 	float PitchRadian = FMath::Atan2(DirectionToTargetNormalize.Z, FVector(DirectionToTargetNormalize.X, DirectionToTargetNormalize.Y, 0).Size());
 	float PitchAngle = FMath::RadiansToDegrees(PitchRadian);
 
-	FRotator TargetRotation = FRotator(PitchAngle, YawAngle,0 );
+	FRotator TargetRotation = FRotator(PitchAngle, YawAngle, 0);
 	FRotator AgentNewRotation = FMath::RInterpTo(m_Agent->GetActorRotation(),
-		TargetRotation, GetWorld()->GetDeltaSeconds(), 10.0f);
+		TargetRotation, GetWorld()->GetDeltaSeconds(), RotationSpeed);
 
-
-	m_Agent->SetActorLocation(AgentNewPosition);
-	m_Agent->GetController()->SetControlRotation(AgentNewRotation);
-
-
+	m_Agent->SetActorLocationAndRotation(AgentNewPosition, AgentNewRotation);
+	
 	if (FVector::Dist(AgentLocation, NextWaypoint) <= 50.0f) {
+
+		m_Path[0].Node->Status = ENodeStatus::AllowToPass;
 		m_Path.RemoveAt(0);
+
+		if (m_Path.Num() != 0) {
+			if (m_Path[0].Node->CheckIsNodeOccupied()) {
+				MoveTo(m_Path[m_Path.Num() - 1].GetLocation());
+			}
+			else {
+				m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
+			}
+		}
 	}
 	
 	FTimerDelegate MoveDelegate;
@@ -129,9 +137,6 @@ void UAStarAgentComponent::AgentMove()
 	{
 		AgentMove();
 	});
-
-	//FTimerDelegate MoveDelegate;
-	//MoveDelegate.BindUFunction(this, FName("AgentMove"));
 
 	GetWorld()->GetTimerManager().SetTimer(m_PathFindingHandle, MoveDelegate, GetWorld()->GetDeltaSeconds(), false);
 }
@@ -150,6 +155,8 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 
 	if (m_AgentStatus == EPathfindingStatus::InProgress)
 		return;
+
+	m_Path.Empty();
 
 	UAStarNode* StartNode = m_PathGrid->GetClosestNode(GetOwner()->GetActorLocation());
 	UAStarNode* GoalNode = m_PathGrid->GetClosestNode(Goal);
@@ -197,7 +204,7 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 				if (!Neighbor)
 					continue;
 
-				if (ClosedList.Contains(Neighbor) || Neighbor->InvalidPath)
+				if (ClosedList.Contains(Neighbor) || Neighbor->CheckIsNodeInvalid() || Neighbor->CheckIsNodeOccupied())
 				{
 					continue;
 				}
@@ -232,5 +239,10 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 EPathfindingStatus UAStarAgentComponent::GetAgentStatus() const
 {
 	return m_AgentStatus;
+}
+
+AAStarPathGrid* UAStarAgentComponent::GetGridReference() const
+{
+	return m_PathGrid;
 }
 

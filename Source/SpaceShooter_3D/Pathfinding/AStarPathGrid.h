@@ -98,6 +98,8 @@ public:
 	UFUNCTION(BlueprintPure)
 	UAStarNode* GetClosestNode(FVector Position) const;
 	
+	UFUNCTION(BlueprintPure)
+	FVector GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange);
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Setting")
@@ -114,6 +116,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting | Debug")
 	bool DrawNodesSphere = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting | Debug")
+	float DrawUpdate = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UAStarNode> NodeClass;

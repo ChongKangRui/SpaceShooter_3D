@@ -5,6 +5,16 @@
 #include "CoreMinimal.h"
 #include "AStarNode.generated.h"
 
+UENUM(Blueprintable)
+enum ENodeStatus : uint8 {
+	AllowToPass,
+	InvalidPath,
+	ShipOccupied
+
+
+};
+
+
 UCLASS()
 class SPACESHOOTER_3D_API UAStarNode : public USceneComponent
 {
@@ -16,14 +26,15 @@ public:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pathfinding")
-	bool InvalidPath = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pathfinding")
 	int cost = 1;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Pathfinding")
 	TArray<UAStarNode*> Neightbours;
 
 	FIntVector Point;
+	ENodeStatus Status = ENodeStatus::AllowToPass;
+
+	bool CheckIsNodeOccupied() const;
+	bool CheckIsNodeInvalid() const;
 
 };

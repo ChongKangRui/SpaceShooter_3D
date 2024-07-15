@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Character/SpaceShooter_Player.h"
+#include "GameFramework/InputSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 void ASpaceShip_PlayerController::BeginPlay()
@@ -26,6 +27,8 @@ void ASpaceShip_PlayerController::SetupInputComponent()
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Move);
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Look);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopLook);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopLook);
 
 		EnhancedInputComponent->BindAction(SpeedingAction, ETriggerEvent::Started , this, &ASpaceShip_PlayerController::StartSpeeding);
 		EnhancedInputComponent->BindAction(SpeedingAction, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopSpeeding);
@@ -41,19 +44,31 @@ void ASpaceShip_PlayerController::OnPossess(APawn* p)
 {
 	Super::OnPossess(p);
 	if (p) {
-		player = Cast<ASpaceShooter_Player>(p);
+		m_Player = Cast<ASpaceShooter_Player>(p);
 
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(this->GetLocalPlayer()))
 		{
-			UE_LOG(LogTemp, Error, TEXT("Heeeeeee"));
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
+
+		m_PitchValue = m_Player->GetActorRotation().Pitch;
+		m_YawValue = m_Player->GetActorRotation().Yaw;
 	}
+}
+
+float ASpaceShip_PlayerController::GetCurrentPitchValue() const
+{
+	return m_PitchValue;
+}
+
+float ASpaceShip_PlayerController::GetCurrentYawValue() const
+{
+	return m_YawValue;
 }
 
 void ASpaceShip_PlayerController::Move(const FInputActionValue& Value)
 {
-	if (!player)
+	if (!m_Player)
 		return;
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -63,49 +78,51 @@ void ASpaceShip_PlayerController::Move(const FInputActionValue& Value)
 	const FVector ForwardDirection = ForwardBackDirection();;
 
 	// add movement 
-	player->AddMovementInput(ForwardDirection, MovementVector.Y);
-	player->AddMovementInput(RightDirection, MovementVector.X);
+	m_Player->AddMovementInput(ForwardDirection, MovementVector.Y);
+	m_Player->AddMovementInput(RightDirection, MovementVector.X);
 
 }
 
 void ASpaceShip_PlayerController::Look(const FInputActionValue& Value)
 {
-	if (!player)
+	if (!m_Player)
 		return;
 
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
+	m_YawValue = LookAxisVector.X;
+	m_PitchValue = -LookAxisVector.Y;
+}
 
-	// add yaw and pitch input to controller
-	player->AddControllerYawInput(LookAxisVector.X);
-	player->AddControllerPitchInput(LookAxisVector.Y);
-
-
+void ASpaceShip_PlayerController::StopLook()
+{
+	m_YawValue = 0;
+	m_PitchValue = 0;
 }
 
 void ASpaceShip_PlayerController::StartSpeeding()
 {
-	if (!player)
+	if (!m_Player)
 		return;
 
-	player->TargetCameraFOV = player->SpeedingFOV;
-	player->GetCharacterMovement()->MaxFlySpeed = 2000.0f;
+	m_Player->m_TargetCameraFOV = m_Player->SpeedingFOV;
+	m_Player->GetCharacterMovement()->MaxFlySpeed = 2000.0f;
 }
 
 void ASpaceShip_PlayerController::StopSpeeding()
 {
-	if (!player)
+	if (!m_Player)
 		return;
 
-	player->TargetCameraFOV = player->NormalFOV;
-	player->GetCharacterMovement()->MaxFlySpeed = 600.0f;
+	m_Player->m_TargetCameraFOV = m_Player->NormalFOV;
+	m_Player->GetCharacterMovement()->MaxFlySpeed = 600.0f;
 }
 
 FVector ASpaceShip_PlayerController::LeftRightDirection() const
 {
 	// find out which way is forward
-	const FRotator Rotation = GetControlRotation();
+	const FRotator Rotation = m_Player->GetActorRotation();
 	//const FRotator YawRotation(0, Rotation.Yaw, Rotation.Roll);
 	const FRotator YawRotation(0, Rotation.Yaw, 0);
 	return UKismetMathLibrary::GetRightVector(YawRotation);
@@ -113,7 +130,7 @@ FVector ASpaceShip_PlayerController::LeftRightDirection() const
 
 FVector ASpaceShip_PlayerController::ForwardBackDirection() const
 {
-	const FRotator Rotation = GetControlRotation();
+	const FRotator Rotation = m_Player->GetActorRotation();
 
 	bool ZInrange = UKismetMathLibrary::InRange_FloatFloat(Rotation.Vector().Z, -1, -0.1);
 	bool ZInrange2 = UKismetMathLibrary::InRange_FloatFloat(Rotation.Vector().Z, 0.1, 1.0);
