@@ -2,10 +2,8 @@
 
 #include "SpaceShooter_3DCharacter.h"
 #include "Engine/LocalPlayer.h"
-
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-
 #include "GameFramework/Controller.h"
 #include "Pathfinding/AStarAgentComponent.h"
 #include "InputActionValue.h"
@@ -36,6 +34,9 @@ ASpaceShooter_3DCharacter::ASpaceShooter_3DCharacter()
 	GetCharacterMovement()->MovementMode = EMovementMode::MOVE_Flying;
 
 	AgentComponent = CreateDefaultSubobject<UAStarAgentComponent>(TEXT("AStar Agent"));
+
+	ShipChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Ship"));
+	ShipChildActor->SetupAttachment(GetMesh());
 }
 
 

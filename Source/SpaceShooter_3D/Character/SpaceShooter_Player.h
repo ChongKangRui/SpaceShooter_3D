@@ -46,23 +46,20 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = ChildACtor, meta = (AllowPrivateAccess = "true"))
-	UChildActorComponent* ShipChildActor;
-
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	float CameraFOV_InterpSpeed = 5.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	FVector DesiredSocketOffset = FVector(0.0f, 0.0f, 50.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
-	float FlightInterpSpeed = 5.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	float SpeedingFOV = 120.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	float NormalFOV = 90.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
+	float FlightInterpSpeed = 5.0f;
 
 	/*When Turn left or right, how much Pitch angle wanna tilt*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))

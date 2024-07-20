@@ -23,9 +23,6 @@ ASpaceShooter_Player::ASpaceShooter_Player()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
-
-	ShipChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Ship"));
-	ShipChildActor->SetupAttachment(GetMesh());
 }
 
 void ASpaceShooter_Player::BeginPlay()
@@ -68,8 +65,8 @@ void ASpaceShooter_Player::UpdateRotationSmoothly(FRotator Target, float Constan
 	float PitchRotationTarget = GetShipTiltValue(YawValue, 0.5f, -FlightPitchTilt, FlightPitchTilt);
 	float RollRotationTarget = GetShipTiltValue(PitchValue, 0.5f, FlightRollTilt, -FlightRollTilt);
 	
-	m_ShipMeshRotation.Pitch = FMath::FInterpTo(m_ShipMeshRotation.Pitch, PitchRotationTarget, GetWorld()->GetDeltaSeconds(), 20.0f);
-	m_ShipMeshRotation.Roll = FMath::FInterpTo(m_ShipMeshRotation.Roll, RollRotationTarget, GetWorld()->GetDeltaSeconds(), 20.0f);
+	m_ShipMeshRotation.Pitch = FMath::FInterpTo(m_ShipMeshRotation.Pitch, PitchRotationTarget, GetWorld()->GetDeltaSeconds(), SmoothSpeed);
+	m_ShipMeshRotation.Roll = FMath::FInterpTo(m_ShipMeshRotation.Roll, RollRotationTarget, GetWorld()->GetDeltaSeconds(), SmoothSpeed);
 	
 	ShipChildActor->SetRelativeRotation(FRotator(m_ShipMeshRotation.Pitch,0, m_ShipMeshRotation.Roll));
 
