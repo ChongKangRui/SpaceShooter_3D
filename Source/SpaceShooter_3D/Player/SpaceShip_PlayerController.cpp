@@ -1,13 +1,14 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Character/SpaceShip_PlayerController.h"
+#include "SpaceShip_PlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Character/SpaceShooter_Player.h"
+#include "SpaceShooter_Player.h"
 #include "GameFramework/InputSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Player/PlayerInputMapping.h"
 
 void ASpaceShip_PlayerController::BeginPlay()
 {
@@ -20,24 +21,49 @@ void ASpaceShip_PlayerController::BeginPlay()
 void ASpaceShip_PlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+
+	if (!PlayerMappingDataset.IsValid()) {
+		UE_LOG(LogTemp, Error, TEXT("PC: PlayerMappingData Reference Invalid"));
+		return;
+	}
+
+	if (!m_Player) {
+		UE_LOG(LogTemp, Error, TEXT("PC: Invalid Player Character Reference"));
+		return;
+	}
+
 	// Set up action bindings
-	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent)) {
+	if (UEnhancedInputComponent* enhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent)) {
+		if (const UInputAction* move = PlayerMappingDataset->MoveAction.Get()) {
+			enhancedInputComponent->BindAction(move, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Move);
+		}
 
-		// Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Move);
-		// Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Look);
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopLook);
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopLook);
+		if (const UInputAction* look = PlayerMappingDataset->LookAction.Get()) {
+			enhancedInputComponent->BindAction(look, ETriggerEvent::Triggered, this, &ASpaceShip_PlayerController::Look);
+			enhancedInputComponent->BindAction(look, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopLook);
+			enhancedInputComponent->BindAction(look, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopLook);
+		}
 
-		EnhancedInputComponent->BindAction(SpeedingAction, ETriggerEvent::Started , this, &ASpaceShip_PlayerController::StartSpeeding);
-		EnhancedInputComponent->BindAction(SpeedingAction, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopSpeeding);
-		EnhancedInputComponent->BindAction(SpeedingAction, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopSpeeding);
+		if (const UInputAction* speeding = PlayerMappingDataset->SpeedingAction.Get()) {
+			enhancedInputComponent->BindAction(speeding, ETriggerEvent::Started, this, &ASpaceShip_PlayerController::StartSpeeding);
+			enhancedInputComponent->BindAction(speeding, ETriggerEvent::Completed, this, &ASpaceShip_PlayerController::StopSpeeding);
+			enhancedInputComponent->BindAction(speeding, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopSpeeding);
+		}
+		if (const UInputAction* LightArmorShoot = PlayerMappingDataset->LightArmorShootAction.Get()) {
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::StartFireMissle, EWeaponType::LightArmor);
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::LightArmor);
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::LightArmor);
+
+		}
+
+		
 	}
 	else
 	{
 		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
 	}
+
+	PlayerMappingDataset.Reset();
 }
 
 void ASpaceShip_PlayerController::OnPossess(APawn* p)
@@ -46,15 +72,34 @@ void ASpaceShip_PlayerController::OnPossess(APawn* p)
 	if (p) {
 		m_Player = Cast<ASpaceShooter_Player>(p);
 
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(this->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
+		/*Input Setup*/
+		LoadPlayerMappingDataset();
+		SetupInputComponent();
+		SetInputMode(FInputModeGameOnly());
 
+		/*Rotation Value Setup*/
 		m_PitchValue = m_Player->GetActorRotation().Pitch;
 		m_YawValue = m_Player->GetActorRotation().Yaw;
 	}
 }
+
+void ASpaceShip_PlayerController::LoadPlayerMappingDataset()
+{
+	//Load the player mapping context and input action from the data asset
+	if (PlayerMappingDataset.IsPending()) {
+		PlayerMappingDataset.LoadSynchronous();
+	}
+
+	if (PlayerMappingDataset.IsValid()) {
+		if (const UInputMappingContext* mappingContext = PlayerMappingDataset->DefaultMappingContext.Get()) {
+			if (UEnhancedInputLocalPlayerSubsystem* subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(this->GetLocalPlayer())) {
+				subsystem->AddMappingContext(mappingContext, 0);
+			}
+		}
+	}
+
+}
+
 
 float ASpaceShip_PlayerController::GetCurrentPitchValue() const
 {

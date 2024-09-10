@@ -46,7 +46,7 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	TArray<FAStarNodeData> ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList);
+	TArray<FAStarNodeData> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
 	void AgentMove();
 
 private:	

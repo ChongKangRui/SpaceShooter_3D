@@ -44,12 +44,12 @@ void UAStarAgentComponent::BeginPlay()
 
 }
 
-TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const UAStarNode* Goal, const TArray<FAStarNodeData> NodeList)
+TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList)
 {
 	TArray<FAStarNodeData> Path;
 
 	auto EndNodeData = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
-		return NodeData.Node == Goal;
+		return *NodeData.Node == Goal;
 		});
 	
 
@@ -60,7 +60,7 @@ TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const UAStarNode* G
 	else
 		UE_LOG(LogTemp, Error, TEXT("Invalid goal end node"));
 
-	while (CurrentNodeData.CameFrom)
+	while (CurrentNodeData.CameFrom && !CurrentNodeData.CameFrom->CheckIsNodeInvalid())
 	{
 		Path.Insert(CurrentNodeData, 0); // Insert at the beginning
 		auto NodeRef = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
@@ -119,15 +119,20 @@ void UAStarAgentComponent::AgentMove()
 	
 	if (FVector::Dist(AgentLocation, NextWaypoint) <= 50.0f) {
 
-		m_Path[0].Node->Status = ENodeStatus::AllowToPass;
+		//m_Path[0].Node->Status = ENodeStatus::AllowToPass;
 		m_Path.RemoveAt(0);
 
 		if (m_Path.Num() != 0) {
-			if (m_Path[0].Node->CheckIsNodeOccupied()) {
-				MoveTo(m_Path[m_Path.Num() - 1].GetLocation());
-			}
-			else {
-				m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
+			/*If path had occupied, recalculate it, otherwise, move to and set the node to be occupied*/
+			if (m_Path[0].Node) {
+				if (m_Path[0].Node->CheckIsNodeOccupied()) {
+					/*If this is last node and being occupied, we should stop then*/
+					if(m_Path.Num() > 1)
+						MoveTo(m_Path[m_Path.Num() - 1].GetLocation());
+				}
+				else {
+					m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
+				}
 			}
 		}
 	}
@@ -153,13 +158,18 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 		return;
 	}
 
-	if (m_AgentStatus == EPathfindingStatus::InProgress)
-		return;
+	FNodeRealData& StartNode = m_PathGrid->GetClosestNode(GetOwner()->GetActorLocation());
+	FNodeRealData& GoalNode = m_PathGrid->GetClosestNode(Goal);
+
+	UE_LOG(LogTemp, Error, TEXT("Goal Location %s and Goal Node %s"), *GoalNode.Location.ToString(), *Goal.ToString());
+
+	if (m_AgentStatus == EPathfindingStatus::InProgress){
+		if (GoalNode.Location == m_Path[m_Path.Num() - 1].GetLocation()) {
+			return;
+		}
+	}
 
 	m_Path.Empty();
-
-	UAStarNode* StartNode = m_PathGrid->GetClosestNode(GetOwner()->GetActorLocation());
-	UAStarNode* GoalNode = m_PathGrid->GetClosestNode(Goal);
 
 	if (StartNode == GoalNode) {
 		m_AgentStatus = EPathfindingStatus::Failed;
@@ -167,8 +177,8 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 		return;
 	}
 
-	DrawDebugSphere(GetWorld(), StartNode->GetComponentLocation(), 100.0f, 2.0f, FColor::Blue, true, 10.0f, 0, 2);
-	DrawDebugSphere(GetWorld(), GoalNode->GetComponentLocation(), 100.0f, 2.0f, FColor::Purple, true, 10.0f, 0, 2);
+	DrawDebugSphere(GetWorld(), StartNode.Location, 300.0f, 4.0f, FColor::Yellow, true, 10.0f, 0, 2);
+	DrawDebugSphere(GetWorld(), GoalNode.Location, 300.0f, 4.0f, FColor::Green, true, 10.0f, 0, 2);
 
 	GetWorld()->GetTimerManager().ClearTimer(m_PathFindingHandle);
 
@@ -178,58 +188,61 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 	FAStarNodeData CurrentNodeData(StartNode);
 
 	CurrentNodeData.gCost = 0;
-	CurrentNodeData.hCost = FVector::Dist(StartNode->GetComponentLocation(), GoalNode->GetComponentLocation());
+	CurrentNodeData.hCost = FVector::Dist(StartNode.Location, GoalNode.Location);
 
-	OpenList.Add(FAStarNodeData(CurrentNodeData));
+	OpenList.Add(CurrentNodeData);
 
 	while (OpenList.Num() > 0) {
-
+	
 		FAStarNodeData Current;
 		OpenList.HeapPop(Current, true);
-
+	
 		ClosedList.Add(Current);
-
-		if (Current.Node == GoalNode)
+	
+		if (Current.Node == &GoalNode)
 		{
 			m_Path = ReconstructPath(GoalNode, ClosedList);
 			AgentMove();
 			//m_AgentStatus = EPathfindingStatus::Success;
 			return;
 		}
-
+	
 		if (Current.IsValidNode()) {
-
-			for (UAStarNode* Neighbor : Current.GetNeighbour())
+	
+			//UE_LOG(LogTemp, Error, TEXT("Neighbour Number %i"), Current.GetNeighbour().Num());
+			for (FIntVector& NeighborIndex : Current.GetNeighbour())
 			{
-				if (!Neighbor)
+				FNodeRealData& Neighbor = m_PathGrid->GetNode(NeighborIndex);
+				if (Neighbor.CheckIsNodeInvalid())
 					continue;
-
-				if (ClosedList.Contains(Neighbor) || Neighbor->CheckIsNodeInvalid() || Neighbor->CheckIsNodeOccupied())
+	
+				if (ClosedList.Contains(Neighbor) || Neighbor.CheckIsNodeInvalid() || Neighbor.CheckIsNodeOccupied())
 				{
 					continue;
 				}
-
+	
 				FAStarNodeData NeighbourData(Neighbor);
-
-				float NewGCost = Current.gCost + FVector::Dist(Current.GetLocation(), NeighbourData.GetLocation()) + Neighbor->cost;
-
+	
+				/*The one is neighbour cost, for now no way to modify it at the moment*/
+				float NewGCost = Current.gCost + FVector::Dist(Current.GetLocation(), NeighbourData.GetLocation()) + 1;
+	
 				if (NewGCost < NeighbourData.gCost)
 				{
-
+	
 					NeighbourData.gCost = NewGCost;
-					NeighbourData.hCost = FVector::Dist(NeighbourData.GetLocation(), GoalNode->GetComponentLocation());
+					NeighbourData.hCost = FVector::Dist(NeighbourData.GetLocation(), GoalNode.Location);
 					NeighbourData.CameFrom = Current.Node;
-
+	
 					if (!OpenList.Contains(NeighbourData))
 					{
 						OpenList.HeapPush(NeighbourData, [](const FAStarNodeData& A, const FAStarNodeData& B) { return A < B; });
-
+	
 					}
 				}
 			}
 		}
 	}
-	UE_LOG(LogTemp, Error, TEXT("Success Path Finding end %i"), ClosedList.Num());
+	//UE_LOG(LogTemp, Error, TEXT("Success Path Finding end %i"), ClosedList.Num());
 	
 
 	//m_Path = ReconstructPath(GoalNode,ClosedList);

@@ -68,6 +68,7 @@ protected:
 	/*When Turn up or down, how much Roll angle wanna tilt*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
 	float FlightRollTilt = 10.0f;
+
 private:
 	void UpdateCameraSetting();
 	void UpdateRotationSmoothly(FRotator Target, float ConstantSpeed, float SmoothSpeed);

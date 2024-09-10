@@ -36,6 +36,8 @@ void AAStarPathGrid::BeginPlay()
 
 		GetWorld()->GetTimerManager().SetTimer(Handle, MoveDelegate, DrawUpdate, true);
 	}
+	RefreshPathFinding();
+	UE_LOG(LogTemp, Error, TEXT("BeginPlay IsEmpty? %s"), NodeDataGrid.IsEmpty() ? TEXT("True") : TEXT("False"));
 }
 
 
@@ -49,124 +51,151 @@ void AAStarPathGrid::RefreshPathFinding()
 	GenerateGrid();
 }
 
-UAStarNode* AAStarPathGrid::GetClosestNode(FVector Position) const
+FNodeRealData& AAStarPathGrid::GetClosestNode(FVector Position)
 {
-	float ShortestDistance = FLT_MAX;
-	UAStarNode* OutNode = nullptr;
-	for (UAStarNode* Node : NodeList) {
-		if (Node && !Node->CheckIsNodeInvalid()) {
-			float CurrentDist = FVector::Dist(Position, Node->GetComponentLocation());
-			if (CurrentDist < ShortestDistance) {
-				OutNode = Node;
-				ShortestDistance = CurrentDist;
-			}
+	FIntVector Point = ConvertLocationToPoint(Position);
 
+	FNodeRealData& OutNode = GetNode(Point);
+	FNodeRealData FoundNode = OutNode;
+
+	float shortestDistance = FVector::Dist(Position, OutNode.Location);
+
+	for (FIntVector Neighbour : FoundNode.Neightbours) {
+		FNodeRealData& CurrentNode = GetNode(Neighbour);
+		float newDistance = FVector::Dist(Position, CurrentNode.Location);
+		if (newDistance < shortestDistance) {
+			UE_LOG(LogTemp, Error, TEXT("Meet condition for closest Node"));
+			shortestDistance = newDistance;
+			OutNode = CurrentNode;
 		}
-
 	}
 
 	return OutNode;
 }
 
+FNodeRealData& AAStarPathGrid::GetNode(FIntVector Index) {
+	static FNodeRealData EmptyNode;
+
+	if (NodeDataGrid.IsValidIndex(Index.X) && NodeDataGrid[Index.X].IsValidIndex(Index.Y) && NodeDataGrid[Index.X][Index.Y].IsValidIndex(Index.Z)) {
+
+		return NodeDataGrid[Index.X][Index.Y][Index.Z];
+	}
+
+	return EmptyNode;
+}
+
 FVector AAStarPathGrid::GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange)
 {
-	TArray<FVector> Range;
+	FVector RandomLocation = FMath::VRand() * FMath::FRandRange(MinimumRange, MaximumRange);
+	
+	return Center + RandomLocation;
+}
 
-	for (UAStarNode* N : NodeList) {
-		if (N && !N->CheckIsNodeInvalid()) {
-			float Distance = FVector::Dist(N->GetComponentLocation(), Center);
-			if (Distance >= MinimumRange && Distance <= MaximumRange) {
-				Range.Add(N->GetComponentLocation());
+FIntVector AAStarPathGrid::ConvertLocationToPoint(FVector Location) const
+{
+	FVector Divisor = GridSize * 2 / (FVector(SpacingBetweenNode) - FVector(1.0f));
+	FVector Point = ((Location - GetActorLocation()) + GridSize) / Divisor;
+
+	return FIntVector(Point);
+}
+
+
+FVector AAStarPathGrid::ConvertPointToLocation(FVector Point) const
+{
+	return -GridSize + (Point * (GridSize * 2 / (FVector(SpacingBetweenNode) - FVector(1.0f))));
+}
+
+void AAStarPathGrid::SpawnNode(const FIntVector& Point)
+{
+
+	FVector NodeLocation = ConvertPointToLocation(FVector(Point));
+	FNodeRealData data(GetActorLocation() + NodeLocation);
+
+	if (CheckNodeCollision(data.Location)) {
+		data.Status = ENodeStatus::InvalidPath;
+	}
+	else
+		data.Status = ENodeStatus::AllowToPass;
+
+	for (int x = -1; x < 1; x++) {
+		for (int y = -1; y < 1; y++) {
+			for (int z = -1; z < 1; z++) {
+				FIntVector GridIndex = Point + FIntVector(x, y, z);
+
+				if ((GridIndex.X == -1 || GridIndex.Y == -1 || GridIndex.Z == -1)
+					|| (GridIndex.X > SpacingBetweenNode.X || GridIndex.Y > SpacingBetweenNode.Y || GridIndex.Z > SpacingBetweenNode.Z))
+					continue;
+
+				if (GridIndex != Point) {
+					NodeDataGrid[GridIndex.X][GridIndex.Y][GridIndex.Z].Neightbours.AddUnique(Point);
+					data.Neightbours.AddUnique(GridIndex);
+				}
+
 			}
 		}
 	}
 
-	if (Range.IsEmpty()) {
-		return FVector();
-	}
-
-	int RandomArrayIndex = UKismetMathLibrary::RandomIntegerInRange(0, Range.Num() - 1);
-	return Range[RandomArrayIndex];
-}
-
-void AAStarPathGrid::SpawnNode(const FVector& Point)
-{
-	//Grid.Add(Point, FAStarNodeStruct(Point));
-	UWorld* World = GetWorld();
-	UAStarNode* NewNode = NewObject<UAStarNode>(this, UAStarNode::StaticClass());
-	if (NewNode) {
-
-		FVector NodeLocation = -GridSize + (Point * (GridSize * 2 / (FVector(SpacingBetweenNode) - FVector(1.0f))));
-
-		NewNode->Point = FIntVector(Point);
-		NewNode->AttachToComponent(SceneRoot, FAttachmentTransformRules::KeepRelativeTransform);
-		NewNode->SetRelativeLocation(NodeLocation);
-		if (CheckNodeCollision(NewNode->GetComponentLocation())) {
-			NewNode->Status = ENodeStatus::InvalidPath;
-		}
-
-		NodeList.AddUnique(NewNode);
-
-	}
+	NodeDataGrid[Point.X][Point.Y][Point.Z] = data;
+	GeneratedNode++;
 
 }
 
 void AAStarPathGrid::ConnectNeighbour()
 {
-	for (UAStarNode* CurrentNode : NodeList) {
-
-		CurrentNode->Neightbours.Empty();
-
-		const FVector ValuePlus = FVector(
-			UKismetMathLibrary::Max(0, (SpacingBetweenNode.X - 1)),
-			UKismetMathLibrary::Max(0, (SpacingBetweenNode.Y - 1)),
-			UKismetMathLibrary::Max(0, (SpacingBetweenNode.Z - 1)));
-
-		const FVector SpacingNeighbourVector = FVector((GridSize.X * 2 / ValuePlus.X), (GridSize.Y * 2 / ValuePlus.Y), (GridSize.Z * 2 / ValuePlus.Z));
-
-		const TArray<FIntVector> NeighborOffsets = {
-			FIntVector(1, 0, 0), FIntVector(-1, 0, 0),
-			FIntVector(0, 1, 0), FIntVector(0, -1, 0),
-			FIntVector(0, 0, 1), FIntVector(0, 0, -1),
-			FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
-			FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
-			FIntVector(0, 1, 1), FIntVector(0, -1, 1),
-			FIntVector(0, 1, -1), FIntVector(0, -1, -1),
-			FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
-			FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
-			FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
-			FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
-			FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
-			FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
-			};
-
-		//const TArray<FIntVector> DiagonalNeighborOffsets = {
-		//	FIntVector(1, 1, 1), FIntVector(1, 1, -1), FIntVector(1, -1, 1), FIntVector(1, -1, -1),
-		//	FIntVector(-1, 1, 1), FIntVector(-1, 1, -1), FIntVector(-1, -1, 1), FIntVector(-1, -1, -1)
-		//};
-
-		// Iterate through neighbor offsets
-		for (const FIntVector& Offset : NeighborOffsets)
-		{
-			const FIntVector PointToFind = CurrentNode->Point + Offset;
-
-			if (PointToFind.X == -1 || PointToFind.Y == -1 || PointToFind.Z == -1)
-				continue;
-
-			auto NeighbourNodeRef = NodeList.FindByPredicate([&PointToFind](const TObjectPtr<UAStarNode>& Node) -> bool {
-				return Node && Node->Point == PointToFind;
-				});
-
-			if (NeighbourNodeRef) {
-				if (UAStarNode* NeighborNode = NeighbourNodeRef->Get())
-				{
-					if (CurrentNode != NeighborNode) {
-						CurrentNode->Neightbours.AddUnique(NeighborNode);
-					}
-				}
-			}
-		}
-	}
+	//for (UAStarNode* CurrentNode : NodeList) {
+	//for (FNodeRealData& node : NodeDataList) {
+	//
+	//	if (node.CheckIsNodeInvalid())
+	//		continue;
+	//
+	//	node.Neightbours.Empty();
+	//
+	//	const FVector ValuePlus = FVector(
+	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.X - 1)),
+	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.Y - 1)),
+	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.Z - 1)));
+	//
+	//	const FVector SpacingNeighbourVector = FVector((GridSize.X * 2 / ValuePlus.X), (GridSize.Y * 2 / ValuePlus.Y), (GridSize.Z * 2 / ValuePlus.Z));
+	//
+	//	const TArray<FIntVector> NeighborOffsets = {
+	//		FIntVector(1, 0, 0), FIntVector(-1, 0, 0),
+	//		FIntVector(0, 1, 0), FIntVector(0, -1, 0),
+	//		FIntVector(0, 0, 1), FIntVector(0, 0, -1),
+	//		FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
+	//		FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
+	//		FIntVector(0, 1, 1), FIntVector(0, -1, 1),
+	//		FIntVector(0, 1, -1), FIntVector(0, -1, -1),
+	//		FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
+	//		FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
+	//		FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
+	//		FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
+	//		FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
+	//		FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
+	//	};
+	//
+	//
+	//	// Iterate through neighbor offsets
+	//	for (const FIntVector& Offset : NeighborOffsets)
+	//	{
+	//		const FIntVector PointToFind = ConvertLocationToPoint(node.Location) + Offset;
+	//		UE_LOG(LogTemp, Error, TEXT("%s"), *PointToFind.ToString());
+	//		
+	//		//if (PointToFind.X == -1 || PointToFind.Y == -1 || PointToFind.Z == -1)
+	//		//	continue;
+	//		
+	//		//auto NeighbourNodeRef = NodeDataList.FindByPredicate([this, &PointToFind](const FNodeRealData& Node) -> bool {
+	//		//	return ConvertLocationToPoint(Node.Location) == PointToFind;
+	//		//	});
+	//		//
+	//		//if (NeighbourNodeRef) {
+	//		//
+	//		//	if (node != *NeighbourNodeRef) {
+	//		//		node.Neightbours.AddUnique(*NeighbourNodeRef);
+	//		//	}
+	//		//
+	//		//}
+	//	}
+	//}	
 }
 
 bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)
@@ -178,7 +207,7 @@ bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)
 		WorldLocation,
 		FQuat::Identity,
 		ECollisionChannel::ECC_Visibility,
-		FCollisionShape::MakeBox(FVector3f(GridSize.X/SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z)),
+		FCollisionShape::MakeBox(FVector3f(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z)),
 		CollisionParams
 	);
 
@@ -187,43 +216,59 @@ bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)
 
 void AAStarPathGrid::UpdateNodeValidPath()
 {
-	for (auto Node : NodeList) {
-		if (CheckNodeCollision(Node->GetComponentLocation())) {
-			Node->Status = ENodeStatus::InvalidPath;
+	for (int i = 0; i < SpacingBetweenNode.X; i++) {
+
+		for (int j = 0; j < SpacingBetweenNode.Y; j++) {
+
+			for (int k = 0; k < SpacingBetweenNode.Z; k++) {
+
+				if (NodeDataGrid.IsValidIndex(i) && NodeDataGrid[i].IsValidIndex(j) && NodeDataGrid[i][j].IsValidIndex(k)) {
+					FNodeRealData& Node = NodeDataGrid[i][j][k];
+					if (CheckNodeCollision(Node.Location)) {
+						Node.Status = ENodeStatus::InvalidPath;
+					}
+					else {
+						Node.Status = ENodeStatus::AllowToPass;
+					}
+				}
+			}
 		}
+
 	}
+
 	ReDrawEditorDebugNodeSphere();
 
 }
+
 
 void AAStarPathGrid::GenerateGrid()
 {
 	if (!m_IsGeneratingGrid) {
 
 		m_IsGeneratingGrid = true;
-		
-		for (auto Node : NodeList) {
-			if (Node)
-				Node->DestroyComponent();
-		}
 
-		NodeList.Empty();
+		NodeDataGrid.Empty();
 
+		GeneratedNode = 0;
+
+		NodeDataGrid.SetNum(SpacingBetweenNode.X);
 		for (int i = 0; i < SpacingBetweenNode.X; i++) {
+			NodeDataGrid[i].SetNum(SpacingBetweenNode.Y);
 			for (int j = 0; j < SpacingBetweenNode.Y; j++) {
+				NodeDataGrid[i][j].SetNum(SpacingBetweenNode.Z);
 				for (int k = 0; k < SpacingBetweenNode.Z; k++) {
-					SpawnNode(FVector(i, j, k));
+					SpawnNode(FIntVector(i, j, k));
 				}
 			}
 
 		}
 
-		ConnectNeighbour();
+		//ConnectNeighbour();
 		ReDrawEditorDebugNodeSphere();
 
-		m_IsGeneratingGrid = false;
+		UE_LOG(LogTemp, Error, TEXT("%s"), NodeDataGrid.IsEmpty() ? TEXT("True") : TEXT("False"));
 
-		GeneratedNode = NodeList.Num();
+		m_IsGeneratingGrid = false;
 	}
 }
 
@@ -260,18 +305,27 @@ void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 		ClearEditorDebugNodeSphere();
 
 		if (DrawNodesSphere) {
-			for (const UAStarNode* N : NodeList) {
-				if (N) {
-					if (N->CheckIsNodeInvalid())
-						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
-					else if (N->CheckIsNodeOccupied()) {
-						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Blue, true, -1, 0, 2);
-					}
-					else
-						DrawDebugBox(World, N->GetComponentLocation(), FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
+			for (int i = 0; i < SpacingBetweenNode.X; i++) {
 
+				for (int j = 0; j < SpacingBetweenNode.Y; j++) {
+
+					for (int k = 0; k < SpacingBetweenNode.Z; k++) {
+
+						const FNodeRealData& Node = NodeDataGrid[i][j][k];
+
+						if (Node.CheckIsNodeInvalid())
+							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
+						else if (Node.CheckIsNodeOccupied()) {
+							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Blue, true, -1, 0, 2);
+						}
+						else
+							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
+
+					}
 				}
+
 			}
+
 		}
 	}
 

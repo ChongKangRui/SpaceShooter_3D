@@ -33,49 +33,103 @@
 //	}
 //
 //};
+
+UENUM(Blueprintable)
+enum ENodeStatus : uint8 {
+	AllowToPass,
+	InvalidPath,
+	ShipOccupied
+};
+
+USTRUCT()
+struct FNodeRealData {
+	GENERATED_BODY()
+public:
+	FVector Location = FVector::Zero();
+	ENodeStatus Status = ENodeStatus::InvalidPath;
+
+	TArray<FIntVector> Neightbours;
+
+	bool CheckIsNodeOccupied() const {
+		return Status == ENodeStatus::ShipOccupied;
+	};
+	bool CheckIsNodeInvalid() const {
+		return Status == ENodeStatus::InvalidPath;
+	};
+
+
+	FNodeRealData() = default;
+	// Constructor that takes an FVector parameter
+	explicit FNodeRealData(FVector loc) : Location(loc) {}
+
+	bool operator==(const FNodeRealData& Other) const
+	{
+		return Location == Other.Location && Status == Other.Status;
+	}
+
+	bool operator==(const FNodeRealData* Other) const
+	{
+		return this == Other;
+	}
+
+private:
+
+};
+
+
 USTRUCT()
 struct FAStarNodeData {
 		GENERATED_BODY()
 	
 	public:
-		UAStarNode* Node;
-		UAStarNode* CameFrom;
-
 		float gCost;
 		float hCost;
-		
 
+		//UAStarNode* Node;
+		//UAStarNode* CameFrom;
+
+		FNodeRealData* Node;
+		FNodeRealData* CameFrom;
+		
 		FAStarNodeData() : gCost(FLT_MAX), hCost(FLT_MAX), Node(nullptr), CameFrom(nullptr){
 		}
 
-		FAStarNodeData(UAStarNode* n) : gCost(FLT_MAX), hCost(FLT_MAX), Node(n) {
+		FAStarNodeData(FNodeRealData& n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(nullptr) {
+			Node = &n;
 		}
 
 		bool operator==(const FAStarNodeData& Other) const
 		{
-			return this->Node == Other.Node;
+			return Node == Other.Node;
+		}
+
+		bool operator==(const FNodeRealData& node) const {
+			return Node == node;
 		}
 
 		bool operator<(const FAStarNodeData& Other) const {
 			return GetFCost() < Other.GetFCost();
 		}
 
-		const bool IsValidNode() const {
-			return Node ? true : false;
-		}
+		
 
+		const bool IsValidNode() const {
+			return Node && !Node->CheckIsNodeInvalid();
+		}
+		
 		const FVector GetLocation() const {
-			if (Node) {
-				return Node->GetComponentLocation();
+			if (IsValidNode()) {
+				return Node->Location;
 			}
 			return FVector::Zero();
 		}
 
-		const TArray<UAStarNode*> GetNeighbour() const {
-			if (Node) {
+		TArray<FIntVector>& GetNeighbour() const {
+			static TArray<FIntVector> EmptyIndexArray;
+			if (Node)
 				return Node->Neightbours;
-			}
-			return TArray<UAStarNode*>();
+			else
+				return EmptyIndexArray;
 		}
 
 		const float GetFCost() const {
@@ -96,10 +150,10 @@ public:
 	void RefreshPathFinding();
 
 	UFUNCTION(BlueprintPure)
-	UAStarNode* GetClosestNode(FVector Position) const;
-	
-	UFUNCTION(BlueprintPure)
 	FVector GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange);
+
+	FNodeRealData& GetClosestNode(FVector Position);
+	FNodeRealData& GetNode(FIntVector Index);
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Setting")
@@ -111,9 +165,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
 	FIntVector SpacingBetweenNode = {5,3,2};
 
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting")
-	//float TraceRadius = 20.0f;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Setting | Debug")
 	bool DrawNodesSphere = false;
 
@@ -123,11 +174,10 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UAStarNode> NodeClass;
 
-//	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	//TMap<FVector, FAStarNodeData> Grid;
+	//UPROPERTY(BlueprintReadOnly)
+	//TArray<TObjectPtr<UAStarNode>> NodeList;
 
-	UPROPERTY(BlueprintReadOnly)
-	TArray<TObjectPtr<UAStarNode>> NodeList;
+
 
 protected:
 	USceneComponent* SceneRoot;
@@ -145,16 +195,23 @@ private:
 #endif
 
 	void GenerateGrid();
-	void SpawnNode(const FVector& Point);
+	void SpawnNode(const FIntVector& Point);
 	void ConnectNeighbour();
 	bool CheckNodeCollision(const FVector& WorldLocation);
 
 	void UpdateNodeValidPath();
 
+	/*Convert node world location to point*/
+	FIntVector ConvertLocationToPoint(FVector Location) const;
+	/*Convert Point To Relative Location*/
+	FVector ConvertPointToLocation(FVector Point) const;
+
 private:
 	bool m_IsGeneratingGrid = false;
-
 	
+	//TArray<FNodeRealData> NodeDataList;
+
+	TArray<TArray<TArray<FNodeRealData>>> NodeDataGrid;
 
 
 };

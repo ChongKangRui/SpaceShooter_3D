@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "Pathfinding/AStarAgentComponent.h"
+#include "Ship/ShipProjectile.h"
 #include "InputActionValue.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -37,9 +38,162 @@ ASpaceShooter_3DCharacter::ASpaceShooter_3DCharacter()
 
 	ShipChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Ship"));
 	ShipChildActor->SetupAttachment(GetMesh());
+
+	ShipChildActor->SetChildActorClass(AActor::StaticClass());
+
+	DataTableAssetInitialization();
 }
 
+void ASpaceShooter_3DCharacter::BeginPlay()
+{
+	Super::BeginPlay();
 
+	m_CurrentWeapon.Add(EWeaponType::LightArmor, 0);
+	m_CurrentWeapon.Add(EWeaponType::HeavyArmor, 0);
+
+	if (bRandomizeMesh) {
+		int32 EnumMin = 0;
+		int32 EnumMax = static_cast<int32>(EShipType::SpaceShip3);
+
+		int32 RandomEnumValue = FMath::RandRange(EnumMin, EnumMax);
+
+		EShipType type = static_cast<EShipType>(RandomEnumValue);
+		SetShip(type);
+	}
+	else
+		SetShip(ShipMeshType);
+
+	if (const AActor* Ship = ShipChildActor->GetChildActor()) {
+		for (UActorComponent* ac : Ship->GetComponentsByTag(USceneComponent::StaticClass(), "Light")) {
+			if (USceneComponent* sc = Cast<USceneComponent>(ac)) {
+				m_LightArmorFirePoint.Add(sc);
+			}
+		}
+		for (UActorComponent* ac : Ship->GetComponentsByTag(USceneComponent::StaticClass(), "Heavy")) {
+			if (USceneComponent* sc = Cast<USceneComponent>(ac)) {
+				m_HeavyArmorFirePoint.Add(sc);
+			}
+		}
+
+	}
+}
+
+void ASpaceShooter_3DCharacter::DataTableAssetInitialization()
+{
+	//Get datatable
+	static ConstructorHelpers::FObjectFinder<UDataTable> dataTablePath(TEXT("/Script/Engine.DataTable'/Game/Data/DT_ShipAttribute.DT_ShipAttribute'"));
+	m_DataTableAsset = dataTablePath.Object;
+}
+
+void ASpaceShooter_3DCharacter::StartFireMissle(const EWeaponType ArmorSlot)
+{
+	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
+	FTimerDelegate ShootDelegate;
+
+	const TArray<FShipArmor>& WeaponArmorArr = ArmorSlot == HeavyArmor ? m_ShipAttribute.HeavyArmor : m_ShipAttribute.LightArmor;
+
+	if (WeaponArmorArr.IsValidIndex(m_CurrentWeapon[ArmorSlot])) {
+
+		ShootDelegate.BindWeakLambda(this, [&, ArmorSlot]()
+			{
+
+				FireMissle(ArmorSlot);
+			});
+
+		GetWorld()->GetTimerManager().SetTimer(currentTimer, ShootDelegate, WeaponArmorArr[m_CurrentWeapon[ArmorSlot]].Shoot_CD, true);
+	}
+	else {
+
+	}
+	
+}
+
+void ASpaceShooter_3DCharacter::StopFireMissle(const EWeaponType ArmorSlot)
+{
+	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
+
+	if (GetWorld()->GetTimerManager().IsTimerActive(currentTimer)) {
+		GetWorld()->GetTimerManager().ClearTimer(currentTimer);
+		currentTimer.Invalidate();
+	}
+}
+
+void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot)
+{
+	const TArray<USceneComponent*>& Arr = ArmorSlot == LightArmor ? m_LightArmorFirePoint : m_HeavyArmorFirePoint;
+	
+	const TArray<FShipArmor>& WeaponArmorArr = ArmorSlot == HeavyArmor ? m_ShipAttribute.HeavyArmor : m_ShipAttribute.LightArmor;
+
+	if (WeaponArmorArr.IsValidIndex(m_CurrentWeapon[ArmorSlot])) {
+
+		TSubclassOf<AShipProjectile> projectileClass = WeaponArmorArr[m_CurrentWeapon[ArmorSlot]].ProjectileClass;
+
+		if (Arr.Num() == 0) {
+			UE_LOG(LogTemp, Error, TEXT("Armor Firing failed, no SceneComponent reference in Array"));
+			return;
+		}
+
+		if (!projectileClass) {
+			UE_LOG(LogTemp, Error, TEXT("Invalid Projectile Class"));
+			return;
+		}
+
+		for (const USceneComponent* sc : Arr) {
+			//Spawn Missle
+			 // Set the location and rotation where you want to spawn the actor
+			if (sc) {
+				FVector SpawnLocation = sc->GetComponentLocation();
+				FRotator SpawnRotation = GetActorForwardVector().Rotation();
+				FActorSpawnParameters SpawnParams;
+				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+				// Optionally set the owner and instigator
+				SpawnParams.Owner = this;  // 'this' could be the actor spawning the new one
+				SpawnParams.Instigator = this;
+
+				// Spawn the actor (replace AMyActor with your actor class)
+				AShipProjectile* SpawnedActor = GetWorld()->SpawnActor<AShipProjectile>(projectileClass, SpawnLocation, SpawnRotation, SpawnParams);
+
+			}
+
+		}
+	}
+	else {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Index value"));
+	}
+	
+}
+
+void ASpaceShooter_3DCharacter::SwitchWeapon(const EWeaponType ArmorSlot)
+{
+}
+
+void ASpaceShooter_3DCharacter::SetShip(const EShipType& ShipType)
+{
+	
+	if (!m_DataTableAsset) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable"));
+		return;
+	}
+	FString ShipString = UEnum::GetValueAsString(ShipType);
+	const FShipAttribute* data = m_DataTableAsset->FindRow<FShipAttribute>(FName(ShipString), TEXT("Searching Ship data from data table"));
+
+	if (!data) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable Row"));
+		return;
+	}
+
+	m_ShipAttribute = *data;
+
+	if (m_ShipAttribute.ShipMesh) {
+		// Spawn the actor from the class
+		ShipChildActor->SetChildActorClass(m_ShipAttribute.ShipMesh);
+		UE_LOG(LogTemp, Error, TEXT("valid Ship Class"));
+	}
+	else {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Ship Class"));
+	}
+}
 
 
 

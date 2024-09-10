@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Character/SpaceShooter_Player.h"
+#include "SpaceShooter_Player.h"
 #include "Camera/CameraComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -62,13 +62,13 @@ void ASpaceShooter_Player::UpdateRotationSmoothly(FRotator Target, float Constan
 	float PitchValue = m_PlayerController->GetCurrentPitchValue();
 	float YawValue = m_PlayerController->GetCurrentYawValue();
 
-	float PitchRotationTarget = GetShipTiltValue(YawValue, 0.5f, -FlightPitchTilt, FlightPitchTilt);
-	float RollRotationTarget = GetShipTiltValue(PitchValue, 0.5f, FlightRollTilt, -FlightRollTilt);
+	float PitchRotationTarget = GetShipTiltValue(YawValue,0.5f, -FlightPitchTilt, FlightPitchTilt);
+	float RollRotationTarget = GetShipTiltValue(PitchValue, 0.5f, -FlightRollTilt, FlightRollTilt);
 	
 	m_ShipMeshRotation.Pitch = FMath::FInterpTo(m_ShipMeshRotation.Pitch, PitchRotationTarget, GetWorld()->GetDeltaSeconds(), SmoothSpeed);
 	m_ShipMeshRotation.Roll = FMath::FInterpTo(m_ShipMeshRotation.Roll, RollRotationTarget, GetWorld()->GetDeltaSeconds(), SmoothSpeed);
 	
-	ShipChildActor->SetRelativeRotation(FRotator(m_ShipMeshRotation.Pitch,0, m_ShipMeshRotation.Roll));
+	ShipChildActor->SetRelativeRotation(FRotator(m_ShipMeshRotation.Roll, ShipChildActor->GetRelativeRotation().Yaw, m_ShipMeshRotation.Pitch));
 
 	UE_LOG(LogTemp, Error, TEXT("Pitch, %f , Yaw, %f"), PitchValue, YawValue);
 	AddActorLocalRotation(FRotator(PitchValue, YawValue, 0.0f));
@@ -83,6 +83,7 @@ float ASpaceShooter_Player::GetShipTiltValue(float value, float Threshold, float
 	}
 	return 0.0f;
 }
+
 FRotator ASpaceShooter_Player::CalculateFlightRotation() const
 {
 	//FRotator OutRotation;

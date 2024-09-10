@@ -2,6 +2,7 @@
 
 
 #include "AStarNode.h"
+#include "Pathfinding/AStarPathGrid.h"
 
 // Sets default values
 UAStarNode::UAStarNode()
@@ -11,11 +12,13 @@ UAStarNode::UAStarNode()
 
 bool UAStarNode::CheckIsNodeOccupied() const
 {
-    return Status == ENodeStatus::ShipOccupied;
+//    return Status == ENodeStatus::ShipOccupied;
+	return false;
 }
 
 bool UAStarNode::CheckIsNodeInvalid() const
 {
-    return Status == ENodeStatus::InvalidPath;
+   // return Status == ENodeStatus::InvalidPath;
+	return false;
 }
 
