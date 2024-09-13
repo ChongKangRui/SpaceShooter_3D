@@ -18,7 +18,7 @@ ASpaceShooter_3DCharacter::ASpaceShooter_3DCharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(51.481384, 51.481384);
-		
+
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -42,6 +42,16 @@ ASpaceShooter_3DCharacter::ASpaceShooter_3DCharacter()
 	ShipChildActor->SetChildActorClass(AActor::StaticClass());
 
 	DataTableAssetInitialization();
+}
+
+const FVector ASpaceShooter_3DCharacter::GetShootLocation() const
+{
+	return GetActorLocation();
+}
+
+const FVector ASpaceShooter_3DCharacter::GetShootDirection() const
+{
+	return GetActorForwardVector();
 }
 
 void ASpaceShooter_3DCharacter::BeginPlay()
@@ -85,8 +95,18 @@ void ASpaceShooter_3DCharacter::DataTableAssetInitialization()
 	m_DataTableAsset = dataTablePath.Object;
 }
 
+void ASpaceShooter_3DCharacter::ResetShootingTimer(const EWeaponType ArmorSlot)
+{
+	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
+	if (GetWorld()->GetTimerManager().IsTimerActive(currentTimer)) {
+		StartFireMissle(ArmorSlot);
+	}
+}
+
 void ASpaceShooter_3DCharacter::StartFireMissle(const EWeaponType ArmorSlot)
 {
+	StopFireMissle(ArmorSlot);
+
 	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
 	FTimerDelegate ShootDelegate;
 
@@ -97,15 +117,15 @@ void ASpaceShooter_3DCharacter::StartFireMissle(const EWeaponType ArmorSlot)
 		ShootDelegate.BindWeakLambda(this, [&, ArmorSlot]()
 			{
 
-				FireMissle(ArmorSlot);
+				FireMissle(ArmorSlot, m_CurrentWeapon[ArmorSlot]);
 			});
 
 		GetWorld()->GetTimerManager().SetTimer(currentTimer, ShootDelegate, WeaponArmorArr[m_CurrentWeapon[ArmorSlot]].Shoot_CD, true);
 	}
 	else {
-
+		UE_LOG(LogTemp, Error, TEXT("Invalid Armor Weapon"));
 	}
-	
+
 }
 
 void ASpaceShooter_3DCharacter::StopFireMissle(const EWeaponType ArmorSlot)
@@ -118,59 +138,84 @@ void ASpaceShooter_3DCharacter::StopFireMissle(const EWeaponType ArmorSlot)
 	}
 }
 
-void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot)
+void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot, const int WeaponSlot)
 {
 	const TArray<USceneComponent*>& Arr = ArmorSlot == LightArmor ? m_LightArmorFirePoint : m_HeavyArmorFirePoint;
-	
+
 	const TArray<FShipArmor>& WeaponArmorArr = ArmorSlot == HeavyArmor ? m_ShipAttribute.HeavyArmor : m_ShipAttribute.LightArmor;
 
-	if (WeaponArmorArr.IsValidIndex(m_CurrentWeapon[ArmorSlot])) {
+	const FShipArmor& weaponInfo = WeaponArmorArr[WeaponSlot];
 
-		TSubclassOf<AShipProjectile> projectileClass = WeaponArmorArr[m_CurrentWeapon[ArmorSlot]].ProjectileClass;
-
-		if (Arr.Num() == 0) {
-			UE_LOG(LogTemp, Error, TEXT("Armor Firing failed, no SceneComponent reference in Array"));
-			return;
-		}
-
-		if (!projectileClass) {
-			UE_LOG(LogTemp, Error, TEXT("Invalid Projectile Class"));
-			return;
-		}
-
-		for (const USceneComponent* sc : Arr) {
-			//Spawn Missle
-			 // Set the location and rotation where you want to spawn the actor
-			if (sc) {
-				FVector SpawnLocation = sc->GetComponentLocation();
-				FRotator SpawnRotation = GetActorForwardVector().Rotation();
-				FActorSpawnParameters SpawnParams;
-				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-				// Optionally set the owner and instigator
-				SpawnParams.Owner = this;  // 'this' could be the actor spawning the new one
-				SpawnParams.Instigator = this;
-
-				// Spawn the actor (replace AMyActor with your actor class)
-				AShipProjectile* SpawnedActor = GetWorld()->SpawnActor<AShipProjectile>(projectileClass, SpawnLocation, SpawnRotation, SpawnParams);
-
-			}
-
-		}
+	if (Arr.Num() == 0) {
+		UE_LOG(LogTemp, Error, TEXT("Armor Firing failed, no SceneComponent reference in Array"));
+		return;
 	}
-	else {
-		UE_LOG(LogTemp, Error, TEXT("Invalid Index value"));
+
+	if (!weaponInfo.ProjectileClass) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Projectile Class"));
+		return;
 	}
-	
+
+	FHitResult OutHit;
+	FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(FireMissle), /*bTraceComplex=*/ true, /*IgnoreActor=*/ ShipChildActor->GetChildActor());
+	const ECollisionChannel TraceChannel = ECC_GameTraceChannel2;
+
+	FVector TraceStartLocation = GetShootLocation();
+	FVector TraceEndLocation = TraceStartLocation + (GetShootDirection() * weaponInfo.TraceDistance);
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(OutHit, TraceStartLocation, TraceEndLocation, TraceChannel, TraceParams);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	// Optionally set the owner and instigator
+	SpawnParams.Owner = this;  // 'this' could be the actor spawning the new one
+	SpawnParams.Instigator = this;
+
+
+	for (const USceneComponent* sc : Arr) {
+		//Spawn Missle
+		if (sc) {
+			FVector Direction = bHit ? (OutHit.Location - sc->GetComponentLocation()).GetSafeNormal() : (OutHit.TraceEnd - sc->GetComponentLocation()).GetSafeNormal();
+			FRotator SpawnRotation = Direction.Rotation();
+
+			UE_LOG(LogTemp, Error, TEXT("Shoot Location %s, Hitt? %s"), *SpawnRotation.ToString(), bHit ? *OutHit.GetActor()->GetName() : TEXT("No hit actor"));
+
+			// Spawn the actor (replace AMyActor with your actor class)
+			AShipProjectile* SpawnedActor = GetWorld()->SpawnActor<AShipProjectile>(weaponInfo.ProjectileClass, sc->GetComponentLocation(), SpawnRotation, SpawnParams);
+
+		}
+
+	}
+
+
 }
 
 void ASpaceShooter_3DCharacter::SwitchWeapon(const EWeaponType ArmorSlot)
 {
+	int MaxWeapon = ArmorSlot == EWeaponType::LightArmor ? m_ShipAttribute.LightArmor.Num() - 1 : m_ShipAttribute.HeavyArmor.Num() - 1;
+
+	int CurrentWeapon = m_CurrentWeapon[ArmorSlot];
+
+	if (MaxWeapon <= 0) {
+		return;
+	}
+
+	if (CurrentWeapon < MaxWeapon) {
+		CurrentWeapon++;
+	}
+	else {
+		CurrentWeapon = 0;
+	}
+
+	m_CurrentWeapon.Add(ArmorSlot, CurrentWeapon);
+	/*Reset the timer so it can work with correct shooting rate*/
+	ResetShootingTimer(ArmorSlot);
 }
 
 void ASpaceShooter_3DCharacter::SetShip(const EShipType& ShipType)
 {
-	
+
 	if (!m_DataTableAsset) {
 		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable"));
 		return;

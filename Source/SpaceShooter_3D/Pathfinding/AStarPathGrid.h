@@ -50,10 +50,10 @@ public:
 
 	TArray<FIntVector> Neightbours;
 
-	bool CheckIsNodeOccupied() const {
+	FORCEINLINE bool CheckIsNodeOccupied() const {
 		return Status == ENodeStatus::ShipOccupied;
 	};
-	bool CheckIsNodeInvalid() const {
+	FORCEINLINE bool CheckIsNodeInvalid() const {
 		return Status == ENodeStatus::InvalidPath;
 	};
 
@@ -98,6 +98,12 @@ struct FAStarNodeData {
 			Node = &n;
 		}
 
+		//FORCEINLINE uint32 GetTypeHash(const FAStarNodeData& AStarNode)
+		//{
+		//	uint32 Hash = AStarNode.Node ? GetTypeHash(*AStarNode.Node) : 0;
+		//	return Hash;
+		//}
+
 		bool operator==(const FAStarNodeData& Other) const
 		{
 			return Node == Other.Node;
@@ -111,8 +117,6 @@ struct FAStarNodeData {
 			return GetFCost() < Other.GetFCost();
 		}
 
-		
-
 		const bool IsValidNode() const {
 			return Node && !Node->CheckIsNodeInvalid();
 		}
@@ -124,7 +128,7 @@ struct FAStarNodeData {
 			return FVector::Zero();
 		}
 
-		TArray<FIntVector>& GetNeighbour() const {
+		FORCEINLINE TArray<FIntVector>& GetNeighbour() const {
 			static TArray<FIntVector> EmptyIndexArray;
 			if (Node)
 				return Node->Neightbours;
@@ -132,11 +136,14 @@ struct FAStarNodeData {
 				return EmptyIndexArray;
 		}
 
-		const float GetFCost() const {
+		FORCEINLINE const float GetFCost() const {
 			return gCost + hCost;
 		}
 
 };
+
+uint32 GetTypeHash(const FAStarNodeData& AStarNode);
+uint32 GetTypeHash(const FNodeRealData& AStarNode);
 
 UCLASS()
 class SPACESHOOTER_3D_API AAStarPathGrid : public AActor
@@ -196,7 +203,6 @@ private:
 
 	void GenerateGrid();
 	void SpawnNode(const FIntVector& Point);
-	void ConnectNeighbour();
 	bool CheckNodeCollision(const FVector& WorldLocation);
 
 	void UpdateNodeValidPath();

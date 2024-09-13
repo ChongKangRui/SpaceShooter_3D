@@ -36,6 +36,7 @@ protected:
 	
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
+	virtual const FVector GetShootDirection() const override;
 
 protected:
 	/** Camera boom positioning the camera behind the character */

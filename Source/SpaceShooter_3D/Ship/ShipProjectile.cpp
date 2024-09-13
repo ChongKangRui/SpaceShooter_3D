@@ -3,6 +3,7 @@
 
 #include "ShipProjectile.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
 // Sets default values
@@ -25,17 +26,17 @@ AShipProjectile::AShipProjectile()
 	ProjectileMovementComponent->ProjectileGravityScale = 0.0f;
 }
 
-// Called when the game starts or when spawned
-void AShipProjectile::BeginPlay()
+void AShipProjectile::HitMesh(AActor* hitActor)
 {
-	Super::BeginPlay();
-	
+	if (hitActor && hitActor != GetOwner()) {
+		UGameplayStatics::ApplyDamage(hitActor, m_Damage, nullptr, GetOwner(), nullptr);
+		Destroy();
+	}
 }
 
-// Called every frame
-void AShipProjectile::Tick(float DeltaTime)
+void AShipProjectile::Initialization(float Damage)
 {
-	Super::Tick(DeltaTime);
-
+	m_Damage = Damage;
 }
+
 

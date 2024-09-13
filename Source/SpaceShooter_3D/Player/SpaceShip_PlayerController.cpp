@@ -56,6 +56,21 @@ void ASpaceShip_PlayerController::SetupInputComponent()
 
 		}
 
+		if (const UInputAction* HeavyArmorShoot = PlayerMappingDataset->HeavyArmorShootAction.Get()) {
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::StartFireMissle, EWeaponType::HeavyArmor);
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::HeavyArmor);
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::HeavyArmor);
+
+		}
+
+		if (const UInputAction* LightArmorSwitch = PlayerMappingDataset->LightArmorSwitch.Get()) {
+			enhancedInputComponent->BindAction(LightArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::LightArmor);
+			
+		}
+		if (const UInputAction* HeavyArmorSwitch = PlayerMappingDataset->HeavyArmorSwitch.Get()) {
+			enhancedInputComponent->BindAction(HeavyArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::HeavyArmor);
+			
+		}
 		
 	}
 	else

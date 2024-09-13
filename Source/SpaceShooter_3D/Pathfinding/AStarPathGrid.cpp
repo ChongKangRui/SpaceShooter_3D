@@ -37,7 +37,19 @@ void AAStarPathGrid::BeginPlay()
 		GetWorld()->GetTimerManager().SetTimer(Handle, MoveDelegate, DrawUpdate, true);
 	}
 	RefreshPathFinding();
-	UE_LOG(LogTemp, Error, TEXT("BeginPlay IsEmpty? %s"), NodeDataGrid.IsEmpty() ? TEXT("True") : TEXT("False"));
+}
+
+uint32 GetTypeHash(const FAStarNodeData& AStarNode)
+{
+	if (AStarNode.Node)
+		return GetTypeHash(*AStarNode.Node);
+
+	return 0;
+}
+
+uint32 GetTypeHash(const FNodeRealData& AStarNode) {
+	
+	return GetTypeHash(AStarNode.Location);
 }
 
 
@@ -64,7 +76,6 @@ FNodeRealData& AAStarPathGrid::GetClosestNode(FVector Position)
 		FNodeRealData& CurrentNode = GetNode(Neighbour);
 		float newDistance = FVector::Dist(Position, CurrentNode.Location);
 		if (newDistance < shortestDistance) {
-			UE_LOG(LogTemp, Error, TEXT("Meet condition for closest Node"));
 			shortestDistance = newDistance;
 			OutNode = CurrentNode;
 		}
@@ -138,64 +149,6 @@ void AAStarPathGrid::SpawnNode(const FIntVector& Point)
 	NodeDataGrid[Point.X][Point.Y][Point.Z] = data;
 	GeneratedNode++;
 
-}
-
-void AAStarPathGrid::ConnectNeighbour()
-{
-	//for (UAStarNode* CurrentNode : NodeList) {
-	//for (FNodeRealData& node : NodeDataList) {
-	//
-	//	if (node.CheckIsNodeInvalid())
-	//		continue;
-	//
-	//	node.Neightbours.Empty();
-	//
-	//	const FVector ValuePlus = FVector(
-	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.X - 1)),
-	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.Y - 1)),
-	//		UKismetMathLibrary::Max(0, (SpacingBetweenNode.Z - 1)));
-	//
-	//	const FVector SpacingNeighbourVector = FVector((GridSize.X * 2 / ValuePlus.X), (GridSize.Y * 2 / ValuePlus.Y), (GridSize.Z * 2 / ValuePlus.Z));
-	//
-	//	const TArray<FIntVector> NeighborOffsets = {
-	//		FIntVector(1, 0, 0), FIntVector(-1, 0, 0),
-	//		FIntVector(0, 1, 0), FIntVector(0, -1, 0),
-	//		FIntVector(0, 0, 1), FIntVector(0, 0, -1),
-	//		FIntVector(1, 0, 1), FIntVector(-1, 0, 1),
-	//		FIntVector(1, 0, -1), FIntVector(-1, 0, -1),
-	//		FIntVector(0, 1, 1), FIntVector(0, -1, 1),
-	//		FIntVector(0, 1, -1), FIntVector(0, -1, -1),
-	//		FIntVector(1, 1, 0), FIntVector(-1, 1, 0),
-	//		FIntVector(1, -1, 0), FIntVector(-1, -1, 0),
-	//		FIntVector(1, 1, 1), FIntVector(-1, 1, 1),
-	//		FIntVector(1, -1, 1), FIntVector(-1, -1, 1),
-	//		FIntVector(1, 1, -1), FIntVector(-1, 1, -1),
-	//		FIntVector(1, -1, -1), FIntVector(-1, -1, -1)
-	//	};
-	//
-	//
-	//	// Iterate through neighbor offsets
-	//	for (const FIntVector& Offset : NeighborOffsets)
-	//	{
-	//		const FIntVector PointToFind = ConvertLocationToPoint(node.Location) + Offset;
-	//		UE_LOG(LogTemp, Error, TEXT("%s"), *PointToFind.ToString());
-	//		
-	//		//if (PointToFind.X == -1 || PointToFind.Y == -1 || PointToFind.Z == -1)
-	//		//	continue;
-	//		
-	//		//auto NeighbourNodeRef = NodeDataList.FindByPredicate([this, &PointToFind](const FNodeRealData& Node) -> bool {
-	//		//	return ConvertLocationToPoint(Node.Location) == PointToFind;
-	//		//	});
-	//		//
-	//		//if (NeighbourNodeRef) {
-	//		//
-	//		//	if (node != *NeighbourNodeRef) {
-	//		//		node.Neightbours.AddUnique(*NeighbourNodeRef);
-	//		//	}
-	//		//
-	//		//}
-	//	}
-	//}	
 }
 
 bool AAStarPathGrid::CheckNodeCollision(const FVector& WorldLocation)

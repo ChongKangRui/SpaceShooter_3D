@@ -46,7 +46,6 @@ void ASpaceShooter_Player::Tick(float DeltaSeconds)
 
 }
 
-
 void ASpaceShooter_Player::UpdateCameraSetting()
 {
 	float CamFOV = FMath::FInterpTo(GetFollowCamera()->FieldOfView, m_TargetCameraFOV, GetWorld()->GetDeltaSeconds(), CameraFOV_InterpSpeed);
@@ -70,7 +69,7 @@ void ASpaceShooter_Player::UpdateRotationSmoothly(FRotator Target, float Constan
 	
 	ShipChildActor->SetRelativeRotation(FRotator(m_ShipMeshRotation.Roll, ShipChildActor->GetRelativeRotation().Yaw, m_ShipMeshRotation.Pitch));
 
-	UE_LOG(LogTemp, Error, TEXT("Pitch, %f , Yaw, %f"), PitchValue, YawValue);
+	//UE_LOG(LogTemp, Error, TEXT("Pitch, %f , Yaw, %f"), PitchValue, YawValue);
 	AddActorLocalRotation(FRotator(PitchValue, YawValue, 0.0f));
 }
 float ASpaceShooter_Player::GetShipTiltValue(float value, float Threshold, float NegativeTarget, float PositiveTarget)
@@ -83,6 +82,19 @@ float ASpaceShooter_Player::GetShipTiltValue(float value, float Threshold, float
 	}
 	return 0.0f;
 }
+
+const FVector ASpaceShooter_Player::GetShootDirection() const
+{
+	if (m_PlayerController) {
+		if (m_PlayerController->PlayerCameraManager) {
+			return m_PlayerController->PlayerCameraManager->GetActorForwardVector();
+		}
+	}
+
+	return FVector();
+}
+
+
 
 FRotator ASpaceShooter_Player::CalculateFlightRotation() const
 {

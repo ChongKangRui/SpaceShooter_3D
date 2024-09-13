@@ -39,6 +39,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Shoot_Damage = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TraceDistance = 10000.0f;
+
+	/*If not, will only damage when bullet hit the ship*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float UseLineTraceApplyDamage = false;
+
 };
 
 
@@ -94,13 +102,17 @@ public:
 
 
 protected:
+	virtual const FVector GetShootLocation() const;
+	/*Normalized direction*/
+	virtual const FVector GetShootDirection() const;
 	virtual void BeginPlay() override;
 	/*MissleSlot was refer to which missle to shoot*/
 
-	void FireMissle(const EWeaponType ArmorSlot);
+	void FireMissle(const EWeaponType ArmorSlot, const int WeaponSlot);
 
 private:
 	void DataTableAssetInitialization();
+	void ResetShootingTimer(const EWeaponType ArmorSlot);
 
 private:
 	//Light Armor
