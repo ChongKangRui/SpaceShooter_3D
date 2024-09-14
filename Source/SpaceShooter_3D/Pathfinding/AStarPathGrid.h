@@ -118,7 +118,10 @@ struct FAStarNodeData {
 		}
 
 		const bool IsValidNode() const {
-			return Node && !Node->CheckIsNodeInvalid();
+			if (Node)
+				return !Node->CheckIsNodeInvalid();
+			else
+				return false;
 		}
 		
 		const FVector GetLocation() const {

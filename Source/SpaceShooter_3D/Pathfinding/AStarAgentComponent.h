@@ -17,6 +17,8 @@ enum class  EPathfindingStatus : uint8 {
 
 class ASpaceShooter_3DCharacter;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAIPathfindingStateChanged, EPathfindingStatus, AgentStatus);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class SPACESHOOTER_3D_API UAStarAgentComponent : public UActorComponent
 {
@@ -41,6 +43,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float FlyingSpeed = 1000.0f;
 
+	UPROPERTY(BlueprintAssignable)
+	FOnAIPathfindingStateChanged OnPathfindingStateChanged;
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -48,6 +53,10 @@ protected:
 private:
 	TArray<FAStarNodeData> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
 	void AgentMove();
+
+	void DrawDebugPath(const TArray<FAStarNodeData>& path);
+
+	void SetPathfindingState(const EPathfindingStatus& newStatus);
 
 private:	
 	

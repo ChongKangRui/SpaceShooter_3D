@@ -91,7 +91,7 @@ FNodeRealData& AAStarPathGrid::GetNode(FIntVector Index) {
 
 		return NodeDataGrid[Index.X][Index.Y][Index.Z];
 	}
-
+	UE_LOG(LogTemp, Error, TEXT("Invalid Node"));
 	return EmptyNode;
 }
 
