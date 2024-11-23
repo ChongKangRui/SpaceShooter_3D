@@ -13,5 +13,6 @@ UCLASS()
 class SPACESHOOTER_3D_API ASpaceShooter_AI : public ASpaceShooter_3DCharacter
 {
 	GENERATED_BODY()
-	
+
+
 };

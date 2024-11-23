@@ -94,8 +94,8 @@ struct FAStarNodeData {
 		FAStarNodeData() : gCost(FLT_MAX), hCost(FLT_MAX), Node(nullptr), CameFrom(nullptr){
 		}
 
-		FAStarNodeData(FNodeRealData& n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(nullptr) {
-			Node = &n;
+		FAStarNodeData(FNodeRealData* n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(nullptr) {
+			Node = n;
 		}
 
 		//FORCEINLINE uint32 GetTypeHash(const FAStarNodeData& AStarNode)
@@ -131,12 +131,11 @@ struct FAStarNodeData {
 			return FVector::Zero();
 		}
 
-		FORCEINLINE TArray<FIntVector>& GetNeighbour() const {
-			static TArray<FIntVector> EmptyIndexArray;
+		FORCEINLINE TArray<FIntVector> GetNeighbour() const {
 			if (Node)
 				return Node->Neightbours;
 			else
-				return EmptyIndexArray;
+				return TArray<FIntVector>();
 		}
 
 		FORCEINLINE const float GetFCost() const {
@@ -162,8 +161,13 @@ public:
 	UFUNCTION(BlueprintPure)
 	FVector GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange);
 
-	FNodeRealData& GetClosestNode(FVector Position);
-	FNodeRealData& GetNode(FIntVector Index);
+	/*Convert node world location to point*/
+	FIntVector ConvertLocationToPoint(FVector Location) const;
+
+	void SetNodeStatus(FIntVector NodeIndex, ENodeStatus occupiedStatus);
+
+	FNodeRealData* GetClosestNode(FVector Position);
+	FNodeRealData* GetNode(FIntVector Index);
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Setting")
@@ -187,8 +191,6 @@ public:
 	//UPROPERTY(BlueprintReadOnly)
 	//TArray<TObjectPtr<UAStarNode>> NodeList;
 
-
-
 protected:
 	USceneComponent* SceneRoot;
 private:	
@@ -210,8 +212,6 @@ private:
 
 	void UpdateNodeValidPath();
 
-	/*Convert node world location to point*/
-	FIntVector ConvertLocationToPoint(FVector Location) const;
 	/*Convert Point To Relative Location*/
 	FVector ConvertPointToLocation(FVector Point) const;
 
@@ -220,7 +220,7 @@ private:
 	
 	//TArray<FNodeRealData> NodeDataList;
 
-	TArray<TArray<TArray<FNodeRealData>>> NodeDataGrid;
+	TArray<TArray<TArray<FNodeRealData*>>> NodeDataGrid;
 
 
 };

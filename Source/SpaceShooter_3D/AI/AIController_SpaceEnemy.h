@@ -13,5 +13,17 @@ UCLASS()
 class SPACESHOOTER_3D_API AAIController_SpaceEnemy : public AAIController
 {
 	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable)
+	void SetTargetAsPlayer();
+	UFUNCTION(BlueprintCallable)
+	void SetTargetFromTag();
 	
+public:
+	UPROPERTY(EditAnywhere)
+	FName EnemyTag;
+
+protected:
+	AActor* Target;
 };

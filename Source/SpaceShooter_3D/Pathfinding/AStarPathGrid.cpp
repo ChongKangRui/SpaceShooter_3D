@@ -63,36 +63,41 @@ void AAStarPathGrid::RefreshPathFinding()
 	GenerateGrid();
 }
 
-FNodeRealData& AAStarPathGrid::GetClosestNode(FVector Position)
+FNodeRealData* AAStarPathGrid::GetClosestNode(FVector Position)
 {
 	FIntVector Point = ConvertLocationToPoint(Position);
 
-	FNodeRealData& OutNode = GetNode(Point);
-	FNodeRealData FoundNode = OutNode;
+	FNodeRealData* OutNode = GetNode(Point);
+	FNodeRealData* FoundNode = OutNode;
 
-	float shortestDistance = FVector::Dist(Position, OutNode.Location);
+	if (OutNode) {
+		float shortestDistance = FVector::Dist(Position, OutNode->Location);
 
-	for (FIntVector Neighbour : FoundNode.Neightbours) {
-		FNodeRealData& CurrentNode = GetNode(Neighbour);
-		float newDistance = FVector::Dist(Position, CurrentNode.Location);
-		if (newDistance < shortestDistance) {
-			shortestDistance = newDistance;
-			OutNode = CurrentNode;
+		for (FIntVector Neighbour : FoundNode->Neightbours) {
+			FNodeRealData* CurrentNode = GetNode(Neighbour);
+
+			if (!CurrentNode)
+				continue;
+
+			float newDistance = FVector::Dist(Position, CurrentNode->Location);
+			if (newDistance < shortestDistance) {
+				shortestDistance = newDistance;
+				OutNode = CurrentNode;
+			}
 		}
 	}
 
 	return OutNode;
 }
 
-FNodeRealData& AAStarPathGrid::GetNode(FIntVector Index) {
-	static FNodeRealData EmptyNode;
-
+FNodeRealData* AAStarPathGrid::GetNode(FIntVector Index) {
+	
 	if (NodeDataGrid.IsValidIndex(Index.X) && NodeDataGrid[Index.X].IsValidIndex(Index.Y) && NodeDataGrid[Index.X][Index.Y].IsValidIndex(Index.Z)) {
 
 		return NodeDataGrid[Index.X][Index.Y][Index.Z];
 	}
 	UE_LOG(LogTemp, Error, TEXT("Invalid Node"));
-	return EmptyNode;
+	return nullptr;
 }
 
 FVector AAStarPathGrid::GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange)
@@ -100,6 +105,14 @@ FVector AAStarPathGrid::GetRandomLocationWithinRange(const FVector Center, const
 	FVector RandomLocation = FMath::VRand() * FMath::FRandRange(MinimumRange, MaximumRange);
 	
 	return Center + RandomLocation;
+}
+
+void AAStarPathGrid::SetNodeStatus(FIntVector Index, ENodeStatus occupiedStatus)
+{
+	if (NodeDataGrid.IsValidIndex(Index.X) && NodeDataGrid[Index.X].IsValidIndex(Index.Y) && NodeDataGrid[Index.X][Index.Y].IsValidIndex(Index.Z)) {
+
+		NodeDataGrid[Index.X][Index.Y][Index.Z]->Status = occupiedStatus;
+	}
 }
 
 FIntVector AAStarPathGrid::ConvertLocationToPoint(FVector Location) const
@@ -120,13 +133,13 @@ void AAStarPathGrid::SpawnNode(const FIntVector& Point)
 {
 
 	FVector NodeLocation = ConvertPointToLocation(FVector(Point));
-	FNodeRealData data(GetActorLocation() + NodeLocation);
+	FNodeRealData* data = new FNodeRealData(GetActorLocation() + NodeLocation);
 
-	if (CheckNodeCollision(data.Location)) {
-		data.Status = ENodeStatus::InvalidPath;
+	if (CheckNodeCollision(data->Location)) {
+		data->Status = ENodeStatus::InvalidPath;
 	}
 	else
-		data.Status = ENodeStatus::AllowToPass;
+		data->Status = ENodeStatus::AllowToPass;
 
 	for (int x = -1; x < 1; x++) {
 		for (int y = -1; y < 1; y++) {
@@ -138,8 +151,8 @@ void AAStarPathGrid::SpawnNode(const FIntVector& Point)
 					continue;
 
 				if (GridIndex != Point) {
-					NodeDataGrid[GridIndex.X][GridIndex.Y][GridIndex.Z].Neightbours.AddUnique(Point);
-					data.Neightbours.AddUnique(GridIndex);
+					NodeDataGrid[GridIndex.X][GridIndex.Y][GridIndex.Z]->Neightbours.AddUnique(Point);
+					data->Neightbours.AddUnique(GridIndex);
 				}
 
 			}
@@ -176,12 +189,16 @@ void AAStarPathGrid::UpdateNodeValidPath()
 			for (int k = 0; k < SpacingBetweenNode.Z; k++) {
 
 				if (NodeDataGrid.IsValidIndex(i) && NodeDataGrid[i].IsValidIndex(j) && NodeDataGrid[i][j].IsValidIndex(k)) {
-					FNodeRealData& Node = NodeDataGrid[i][j][k];
-					if (CheckNodeCollision(Node.Location)) {
-						Node.Status = ENodeStatus::InvalidPath;
+					FNodeRealData* Node = NodeDataGrid[i][j][k];
+
+					if (!Node)
+						continue;
+
+					if (CheckNodeCollision(Node->Location)) {
+						Node->Status = ENodeStatus::InvalidPath;
 					}
 					else {
-						Node.Status = ENodeStatus::AllowToPass;
+						Node->Status = ENodeStatus::AllowToPass;
 					}
 				}
 			}
@@ -264,15 +281,17 @@ void AAStarPathGrid::ReDrawEditorDebugNodeSphere()
 
 					for (int k = 0; k < SpacingBetweenNode.Z; k++) {
 
-						const FNodeRealData& Node = NodeDataGrid[i][j][k];
+						const FNodeRealData* Node = NodeDataGrid[i][j][k];
+						if (!Node)
+							continue;
 
-						if (Node.CheckIsNodeInvalid())
-							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
-						else if (Node.CheckIsNodeOccupied()) {
-							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Blue, true, -1, 0, 2);
+						if (Node->CheckIsNodeInvalid())
+							DrawDebugBox(World, Node->Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Red, true, -1, 0, 2);
+						else if (Node->CheckIsNodeOccupied()) {
+							DrawDebugBox(World, Node->Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Blue, true, -1, 0, 2);
 						}
 						else
-							DrawDebugBox(World, Node.Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
+							DrawDebugBox(World, Node->Location, FVector(GridSize.X / SpacingBetweenNode.X, GridSize.Y / SpacingBetweenNode.Y, GridSize.Z / SpacingBetweenNode.Z), FColor::Green, true, -1, 0, 2);
 
 					}
 				}

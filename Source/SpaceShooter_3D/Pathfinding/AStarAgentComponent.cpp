@@ -7,13 +7,12 @@
 #include "TimerManager.h"
 #include "Character/SpaceShooter_3DCharacter.h"
 
-
 // Sets default values for this component's properties
 UAStarAgentComponent::UAStarAgentComponent()
 {
 
 	PrimaryComponentTick.bCanEverTick = true;
-
+	SetComponentTickInterval(0.5f);
 }
 
 // Called when the game starts
@@ -41,6 +40,23 @@ void UAStarAgentComponent::BeginPlay()
 	m_PathGrid = BestPathGrid;
 	m_Agent = Cast<ASpaceShooter_3DCharacter>(GetOwner());
 
+}
+
+void UAStarAgentComponent::TickComponent(float Delta, ELevelTick type, FActorComponentTickFunction* func)
+{
+	Super::TickComponent(Delta,type, func);
+	if (m_PathGrid && m_Agent) {
+		//FIntVector curPoint = m_PathGrid->ConvertLocationToPoint(m_Agent->GetActorLocation());
+		//if (m_PreviousLocation == curPoint) {
+		//	return;
+		//}
+		//
+		//m_PathGrid->SetNodeStatus(curPoint, ENodeStatus::ShipOccupied);
+		//m_PathGrid->SetNodeStatus(m_PreviousLocation, ENodeStatus::AllowToPass);
+		//m_PreviousLocation = curPoint;
+
+
+	}
 }
 
 TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList)
@@ -98,7 +114,9 @@ void UAStarAgentComponent::AgentMove()
 	FVector AgentLocation = m_Agent->GetActorLocation();
 
 	const FVector& NextWaypoint = m_Path[0].GetLocation();
-	const FVector& AgentNewPosition = AgentLocation + (m_Agent->GetActorForwardVector() * FlyingSpeed * GetWorld()->GetDeltaSeconds());
+	const FVector& direction = NextWaypoint - AgentLocation;
+
+	const FVector& AgentNewPosition = AgentLocation + (direction.GetSafeNormal() * FlyingSpeed * GetWorld()->GetDeltaSeconds());
 
 	const FVector& DirectionToTarget = NextWaypoint - AgentLocation;
 	const FVector& DirectionToTargetNormalize = DirectionToTarget.GetSafeNormal();
@@ -109,17 +127,17 @@ void UAStarAgentComponent::AgentMove()
 	float PitchRadian = FMath::Atan2(DirectionToTargetNormalize.Z, FVector(DirectionToTargetNormalize.X, DirectionToTargetNormalize.Y, 0).Size());
 	float PitchAngle = FMath::RadiansToDegrees(PitchRadian);
 
-	FRotator TargetRotation = FRotator(PitchAngle, YawAngle, 0);
-	FRotator AgentNewRotation = FMath::RInterpTo(m_Agent->GetActorRotation(),
-		TargetRotation, GetWorld()->GetDeltaSeconds(), RotationSpeed);
+	//FRotator TargetRotation = FRotator(PitchAngle, YawAngle, 0);
+	//FRotator AgentNewRotation = FMath::RInterpTo(m_Agent->GetActorRotation(),
+	//	TargetRotation, GetWorld()->GetDeltaSeconds(), RotationSpeed);
 
-	m_Agent->SetActorLocationAndRotation(AgentNewPosition, AgentNewRotation);
+	//m_Agent->SetActorLocationAndRotation(AgentNewPosition, AgentNewRotation);
+	m_Agent->SetActorLocation(AgentNewPosition);
+	OnAgentMoving.Broadcast(NextWaypoint);
 
-	//UE_LOG(LogTemp, Error, TEXT("Agent Moving"));
+	if (FVector::Dist(AgentLocation, NextWaypoint) <= AcceptableRange) {
 
-	if (FVector::Dist(AgentLocation, NextWaypoint) <= 50.0f) {
-
-		m_Path[0].Node->Status = ENodeStatus::AllowToPass;
+		//m_Path[0].Node->Status = ENodeStatus::AllowToPass;
 		m_Path.RemoveAt(0);
 
 		if (m_Path.Num() != 0) {
@@ -130,9 +148,9 @@ void UAStarAgentComponent::AgentMove()
 					if (m_Path.Num() > 1)
 						MoveTo(m_Path[m_Path.Num() - 1].GetLocation());
 				}
-				else {
-					m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
-				}
+				//else {
+				//	m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
+				//}
 			}
 		}
 
@@ -150,8 +168,10 @@ void UAStarAgentComponent::AgentMove()
 
 void UAStarAgentComponent::DrawDebugPath(const TArray<FAStarNodeData>& path)
 {
-	for (int i = 1; i < path.Num(); i++) {
-		DrawDebugLine(GetWorld(), path[i - 1].GetLocation(), path[i].GetLocation(), FColor::Red, false, 10.0f);
+	if (EnablePathFindingDebug) {
+		for (int i = 1; i < path.Num(); i++) {
+			DrawDebugLine(GetWorld(), path[i - 1].GetLocation(), path[i].GetLocation(), FColor::Red, false, 10.0f);
+		}
 	}
 }
 
@@ -159,6 +179,43 @@ void UAStarAgentComponent::SetPathfindingState(const EPathfindingStatus& newStat
 {
 	m_AgentStatus = newStatus;
 	OnPathfindingStateChanged.Broadcast(newStatus);
+}
+
+TArray<FVector> UAStarAgentComponent::GenerateBezierPath(TArray<FAStarNodeData> path)
+{
+
+	TArray<FVector> BezierPath;
+	
+	// Ensure we have enough points to create at least one cubic Bezier curve
+	if (path.Num() < 4)
+	{
+		return TArray<FVector>(); // Not enough points for a cubic Bezier curve
+	}
+	
+	for (int32 i = 0; i < path.Num() - 3; i += 3) // Advance in steps of 3 (cubic segments)
+	{
+		FVector P0 = path[i].GetLocation();
+		FVector P1 = path[i + 1].GetLocation();
+		FVector P2 = path[i + 2].GetLocation();
+		FVector P3 = path[i + 3].GetLocation();
+	
+		// Interpolate the cubic Bezier curve
+		for (int32 j = 0; j <= SegmentPerPath; ++j)
+		{
+			float t = (float)j / (float)SegmentPerPath;
+	
+			FVector Point =
+				FMath::Pow(1 - t, 3) * P0 +
+				3 * FMath::Pow(1 - t, 2) * t * P1 +
+				3 * (1 - t) * FMath::Pow(t, 2) * P2 +
+				FMath::Pow(t, 3) * P3;
+	
+			BezierPath.Add(Point);
+		}
+	}
+	
+	return BezierPath;
+
 }
 
 void UAStarAgentComponent::MoveTo(FVector Goal)
@@ -173,31 +230,34 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 		UE_LOG(LogTemp, Error, TEXT("Invalid Path Grid Ref"));
 		return;
 	}
+	UE_LOG(LogTemp, Error, TEXT("Start a new path"));
+	FNodeRealData* StartNode = m_PathGrid->GetClosestNode(GetOwner()->GetActorLocation());
+	FNodeRealData* GoalNode = m_PathGrid->GetClosestNode(Goal);
 
-	FNodeRealData& StartNode = m_PathGrid->GetClosestNode(GetOwner()->GetActorLocation());
-	FNodeRealData& GoalNode = m_PathGrid->GetClosestNode(Goal);
-
-	if (m_AgentStatus == EPathfindingStatus::InProgress) {
-		if (GoalNode.Location == m_Path[m_Path.Num() - 1].GetLocation()) {
-			return;
+	/*if (!BreakCurrentPathfinding) {
+		if (m_AgentStatus == EPathfindingStatus::InProgress) {
+			if (GoalNode.Location == m_Path[m_Path.Num() - 1].GetLocation()) {
+				return;
+			}
 		}
-	}
+	}*/
 
 	m_Path.Empty();
 
-	if (StartNode == GoalNode) {
+	if (StartNode == GoalNode || StartNode == nullptr || GoalNode==nullptr) {
 		SetPathfindingState(EPathfindingStatus::Failed);
 		UE_LOG(LogTemp, Error, TEXT("failed to move, start node == goal node or Both node invalid"));
 		return;
 	}
 
-	DrawDebugSphere(GetWorld(), StartNode.Location, 300.0f, 4.0f, FColor::Yellow, false, 10.0f, 0, 2);
-	DrawDebugSphere(GetWorld(), GoalNode.Location, 300.0f, 4.0f, FColor::Green, false, 10.0f, 0, 2);
-
+	if (EnablePathFindingDebug) {
+		DrawDebugSphere(GetWorld(), StartNode->Location, 300.0f, 4.0f, FColor::Yellow, false, 10.0f, 0, 2);
+		DrawDebugSphere(GetWorld(), GoalNode->Location, 300.0f, 4.0f, FColor::Green, false, 10.0f, 0, 2);
+	}
 	GetWorld()->GetTimerManager().ClearTimer(m_PathFindingHandle);
 
 	/*Move heavy compute itteration to background thread to make performance better*/
-	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, &StartNode, &GoalNode]()
+	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, StartNode, GoalNode]()
 		{
 
 			TSet<FAStarNodeData> OpenList;
@@ -206,7 +266,7 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 			FAStarNodeData CurrentNodeData(StartNode);
 
 			CurrentNodeData.gCost = 0;
-			CurrentNodeData.hCost = FVector::Dist(StartNode.Location, GoalNode.Location);
+			CurrentNodeData.hCost = FVector::Dist(StartNode->Location, GoalNode->Location);
 
 			OpenList.Add(CurrentNodeData);
 
@@ -225,19 +285,16 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 
 					It.RemoveCurrent();
 				}
-				else {
-					UE_LOG(LogTemp, Error, TEXT("What is going on, why invalid"));
-				}
-
+			
 				ClosedList.Add(Current);
 
-				if (Current.Node == &GoalNode)
+				if (Current.Node == GoalNode)
 				{
 
 					auto arr = ClosedList.Array();
 					//[](const FAStarNodeData& A, const FAStarNodeData& B) { return A < B; }
 					arr.Sort([](const FAStarNodeData& A, const FAStarNodeData& B) { return A < B; });
-					m_Path = ReconstructPath(GoalNode, arr);
+					m_Path = ReconstructPath(*GoalNode, arr);
 
 					AsyncTask(ENamedThreads::GameThread, [this, &loopNumber]()
 						{
@@ -256,26 +313,43 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 					//UE_LOG(LogTemp, Error, TEXT("Neighbour Number %i"), Current.GetNeighbour().Num());
 					for (const FIntVector& NeighborIndex : Current.GetNeighbour())
 					{
-						FNodeRealData& Neighbor = m_PathGrid->GetNode(NeighborIndex);
+						FNodeRealData* Neighbor = m_PathGrid->GetNode(NeighborIndex);
 
-						if (Neighbor.CheckIsNodeInvalid())
+						if (Neighbor == nullptr)
 							continue;
 
-						if (ClosedList.Contains(Neighbor) || Neighbor.CheckIsNodeOccupied())
+
+						if (Neighbor->CheckIsNodeInvalid())
+							continue;
+
+						if (ClosedList.Contains(Neighbor) || Neighbor->CheckIsNodeOccupied())
 						{
 							continue;
 						}
 
 						FAStarNodeData NeighbourData(Neighbor);
 
+						/*Make sure straight beautiful path is in consideration*/
+						float DirectionChangePenalty = 0.0f;
+						if (Current.CameFrom != nullptr)
+						{
+							FVector PreviousDirection = (Current.GetLocation() - Current.CameFrom->Location).GetSafeNormal();
+							FVector CurrentDirection = (NeighbourData.GetLocation() - Current.GetLocation()).GetSafeNormal();
+
+							// Calculate the deviation angle (dot product gives cosine of the angle)
+							float Deviation = FVector::DotProduct(PreviousDirection, CurrentDirection);
+							DirectionChangePenalty = (1.0f - Deviation) * PenaltyWeight; // PenaltyWeight is a configurable parameter
+						}
+
+
 						/*The one is neighbour cost, for now no way to modify it at the moment*/
-						float NewGCost = Current.gCost + FVector::Dist(Current.GetLocation(), NeighbourData.GetLocation()) + 1;
+						float NewGCost = Current.gCost + FVector::Dist(Current.GetLocation(), NeighbourData.GetLocation()) + DirectionChangePenalty;
 
 						if (NewGCost < NeighbourData.gCost)
 						{
 
 							NeighbourData.gCost = NewGCost;
-							NeighbourData.hCost = FVector::Dist(NeighbourData.GetLocation(), GoalNode.Location);
+							NeighbourData.hCost = FVector::Dist(NeighbourData.GetLocation(), GoalNode->Location);
 							NeighbourData.CameFrom = Current.Node;
 
 							if (!OpenList.Contains(NeighbourData))
@@ -311,5 +385,10 @@ EPathfindingStatus UAStarAgentComponent::GetAgentStatus() const
 AAStarPathGrid* UAStarAgentComponent::GetGridReference() const
 {
 	return m_PathGrid;
+}
+
+FVector UAStarAgentComponent::GetCurrentMovingLocation() const
+{
+	return m_Path.Num() > 0 ? m_Path[m_Path.Num() - 1].GetLocation() : FVector(0);
 }
 

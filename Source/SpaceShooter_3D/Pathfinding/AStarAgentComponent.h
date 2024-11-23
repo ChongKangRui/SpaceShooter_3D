@@ -18,6 +18,7 @@ enum class  EPathfindingStatus : uint8 {
 class ASpaceShooter_3DCharacter;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAIPathfindingStateChanged, EPathfindingStatus, AgentStatus);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAgentMoving, FVector, MovingDestination);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class SPACESHOOTER_3D_API UAStarAgentComponent : public UActorComponent
@@ -37,18 +38,36 @@ public:
 	UFUNCTION(BlueprintPure)
 	AAStarPathGrid* GetGridReference() const;
 
+	UFUNCTION(BlueprintPure)
+	FVector GetCurrentMovingLocation() const;
+
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
 	float RotationSpeed = 10.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
 	float FlyingSpeed = 1000.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
+	float AcceptableRange = 50.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
+	float PenaltyWeight = 500.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")
+	bool BezierPath = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")
+	int SegmentPerPath = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|Debug")
+	bool EnablePathFindingDebug;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnAIPathfindingStateChanged OnPathfindingStateChanged;
 
+	UPROPERTY(BlueprintAssignable)
+	FOnAgentMoving OnAgentMoving;
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float Delta, ELevelTick type, FActorComponentTickFunction* func) override;
 
 private:
 	TArray<FAStarNodeData> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
@@ -57,6 +76,8 @@ private:
 	void DrawDebugPath(const TArray<FAStarNodeData>& path);
 
 	void SetPathfindingState(const EPathfindingStatus& newStatus);
+
+	TArray<FVector> GenerateBezierPath(TArray<FAStarNodeData> path);
 
 private:	
 	
@@ -67,4 +88,6 @@ private:
 	FTimerHandle m_PathFindingHandle;
 
 	TObjectPtr<ASpaceShooter_3DCharacter> m_Agent;
+
+	FIntVector m_PreviousLocation;
 };
