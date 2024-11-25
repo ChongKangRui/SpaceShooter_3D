@@ -90,8 +90,10 @@ void UBTTask_FlyTo::OnAgentMoving(FVector NextPosition)
 
 	if (m_Target) {
 		/*Keep refresh location*/
+		UE_LOG(LogTemp, Error, TEXT("Distancechecl: %f"), FVector::Dist(m_Agent->GetCurrentMovingLocation(), m_Target->GetActorLocation()));
 		if (FVector::Dist(m_Agent->GetCurrentMovingLocation(), m_Target->GetActorLocation()) > DistanceToKeepTrack) {
 			m_Agent->MoveTo(m_Target->GetActorLocation());
+			
 		}
 	}
 }
@@ -103,9 +105,9 @@ void UBTTask_FlyTo::OnAgentStateChanged(EPathfindingStatus newStatus)
 		m_Agent->OnAgentMoving.RemoveDynamic(this, &UBTTask_FlyTo::OnAgentMoving);
 		m_Agent->OnPathfindingStateChanged.RemoveDynamic(this, &UBTTask_FlyTo::OnAgentStateChanged);
 
-		if (UBehaviorTreeComponent* OwnerComp = Cast<UBehaviorTreeComponent>(m_AIController))
+		if (UBehaviorTreeComponent* OwnerComp = Cast<UBehaviorTreeComponent>(m_AIController->GetBrainComponent()))
 		{
-			FinishLatentTask(*OwnerComp, EBTNodeResult::Succeeded);
+			FinishLatentTask(*OwnerComp, newStatus == EPathfindingStatus::Success ? EBTNodeResult::Succeeded : EBTNodeResult::Failed);
 		}
 
 

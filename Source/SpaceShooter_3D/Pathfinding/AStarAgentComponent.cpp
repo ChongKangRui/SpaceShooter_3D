@@ -59,9 +59,9 @@ void UAStarAgentComponent::TickComponent(float Delta, ELevelTick type, FActorCom
 	}
 }
 
-TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList)
+TArray<FVector> UAStarAgentComponent::ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList)
 {
-	TArray<FAStarNodeData> Path;
+	TArray<FVector> Path;
 
 	auto EndNodeData = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
 		return *NodeData.Node == Goal;
@@ -77,7 +77,7 @@ TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const FNodeRealData
 
 	while (CurrentNodeData.CameFrom && !CurrentNodeData.CameFrom->CheckIsNodeInvalid())
 	{
-		Path.Insert(CurrentNodeData, 0); // Insert at the beginning
+		Path.Insert(CurrentNodeData.GetLocation(), 0); // Insert at the beginning
 		auto NodeRef = NodeList.FindByPredicate([&](const FAStarNodeData& NodeData) {
 			return NodeData.Node == CurrentNodeData.CameFrom;
 			});
@@ -90,15 +90,15 @@ TArray<FAStarNodeData> UAStarAgentComponent::ReconstructPath(const FNodeRealData
 
 
 
-	return Path;
+	return EnableBezierPath ? GenerateBezierPath(Path) : Path;
 }
 
 void UAStarAgentComponent::AgentMove()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AgentMove);
 	if (m_Path.Num() == 0) {
-		SetPathfindingState(EPathfindingStatus::Success);
-		UE_LOG(LogTemp, Error, TEXT("Agent Finish Movement"));
+		SetPathfindingState(EPathfindingStatus::Failed);
+		//UE_LOG(LogTemp, Error, TEXT("Agent Finish Movement"));
 		return;
 	}
 
@@ -113,7 +113,7 @@ void UAStarAgentComponent::AgentMove()
 
 	FVector AgentLocation = m_Agent->GetActorLocation();
 
-	const FVector& NextWaypoint = m_Path[0].GetLocation();
+	const FVector& NextWaypoint = m_Path[0];
 	const FVector& direction = NextWaypoint - AgentLocation;
 
 	const FVector& AgentNewPosition = AgentLocation + (direction.GetSafeNormal() * FlyingSpeed * GetWorld()->GetDeltaSeconds());
@@ -138,22 +138,18 @@ void UAStarAgentComponent::AgentMove()
 	if (FVector::Dist(AgentLocation, NextWaypoint) <= AcceptableRange) {
 
 		//m_Path[0].Node->Status = ENodeStatus::AllowToPass;
-		m_Path.RemoveAt(0);
+		//if (m_Path.Num() != 0) {
+		//	MoveTo(m_Path[m_Path.Num() - 1]);
+		//		
+		//}
 
-		if (m_Path.Num() != 0) {
-			/*If path had occupied, recalculate it, otherwise, move to and set the node to be occupied*/
-			if (m_Path[0].Node) {
-				if (m_Path[0].Node->CheckIsNodeOccupied()) {
-					/*If this is last node and being occupied, we should stop then*/
-					if (m_Path.Num() > 1)
-						MoveTo(m_Path[m_Path.Num() - 1].GetLocation());
-				}
-				//else {
-				//	m_Path[0].Node->Status = ENodeStatus::ShipOccupied;
-				//}
-			}
+		if (m_Path.Num() == 0) {
+			SetPathfindingState(EPathfindingStatus::Success);
+			UE_LOG(LogTemp, Error, TEXT("Agent Finish Movement"));
+			return;
 		}
 
+		m_Path.RemoveAt(0);
 
 	}
 
@@ -166,11 +162,11 @@ void UAStarAgentComponent::AgentMove()
 	GetWorld()->GetTimerManager().SetTimer(m_PathFindingHandle, MoveDelegate, GetWorld()->GetDeltaSeconds(), false);
 }
 
-void UAStarAgentComponent::DrawDebugPath(const TArray<FAStarNodeData>& path)
+void UAStarAgentComponent::DrawDebugPath(const TArray<FVector>& path)
 {
 	if (EnablePathFindingDebug) {
 		for (int i = 1; i < path.Num(); i++) {
-			DrawDebugLine(GetWorld(), path[i - 1].GetLocation(), path[i].GetLocation(), FColor::Red, false, 10.0f);
+			DrawDebugLine(GetWorld(), path[i - 1], path[i], FColor::Red, false, 10.0f);
 		}
 	}
 }
@@ -181,7 +177,7 @@ void UAStarAgentComponent::SetPathfindingState(const EPathfindingStatus& newStat
 	OnPathfindingStateChanged.Broadcast(newStatus);
 }
 
-TArray<FVector> UAStarAgentComponent::GenerateBezierPath(TArray<FAStarNodeData> path)
+TArray<FVector> UAStarAgentComponent::GenerateBezierPath(TArray<FVector> path)
 {
 
 	TArray<FVector> BezierPath;
@@ -189,15 +185,15 @@ TArray<FVector> UAStarAgentComponent::GenerateBezierPath(TArray<FAStarNodeData> 
 	// Ensure we have enough points to create at least one cubic Bezier curve
 	if (path.Num() < 4)
 	{
-		return TArray<FVector>(); // Not enough points for a cubic Bezier curve
+		return path; // Not enough points for a cubic Bezier curve
 	}
 	
 	for (int32 i = 0; i < path.Num() - 3; i += 3) // Advance in steps of 3 (cubic segments)
 	{
-		FVector P0 = path[i].GetLocation();
-		FVector P1 = path[i + 1].GetLocation();
-		FVector P2 = path[i + 2].GetLocation();
-		FVector P3 = path[i + 3].GetLocation();
+		FVector P0 = path[i];
+		FVector P1 = path[i + 1];
+		FVector P2 = path[i + 2];
+		FVector P3 = path[i + 3];
 	
 		// Interpolate the cubic Bezier curve
 		for (int32 j = 0; j <= SegmentPerPath; ++j)
@@ -214,6 +210,12 @@ TArray<FVector> UAStarAgentComponent::GenerateBezierPath(TArray<FAStarNodeData> 
 		}
 	}
 	
+	if (!BezierPath.Contains(path.Last()))
+	{
+		BezierPath.Add(path.Last());
+	}
+
+
 	return BezierPath;
 
 }
@@ -389,6 +391,6 @@ AAStarPathGrid* UAStarAgentComponent::GetGridReference() const
 
 FVector UAStarAgentComponent::GetCurrentMovingLocation() const
 {
-	return m_Path.Num() > 0 ? m_Path[m_Path.Num() - 1].GetLocation() : FVector(0);
+	return m_Path.Num() > 0 ? m_Path[m_Path.Num() - 1] : FVector(0);
 }
 

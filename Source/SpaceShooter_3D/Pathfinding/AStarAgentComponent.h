@@ -51,7 +51,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
 	float PenaltyWeight = 500.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")
-	bool BezierPath = true;
+	bool EnableBezierPath = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")
 	int SegmentPerPath = 5.0f;
 
@@ -70,18 +70,18 @@ protected:
 	virtual void TickComponent(float Delta, ELevelTick type, FActorComponentTickFunction* func) override;
 
 private:
-	TArray<FAStarNodeData> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
+	TArray<FVector> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
 	void AgentMove();
 
-	void DrawDebugPath(const TArray<FAStarNodeData>& path);
+	void DrawDebugPath(const TArray<FVector>& path);
 
 	void SetPathfindingState(const EPathfindingStatus& newStatus);
 
-	TArray<FVector> GenerateBezierPath(TArray<FAStarNodeData> path);
+	TArray<FVector> GenerateBezierPath(TArray<FVector> path);
 
 private:	
 	
-	TArray<FAStarNodeData> m_Path;
+	TArray<FVector> m_Path;
 	TObjectPtr<AAStarPathGrid> m_PathGrid;
 	EPathfindingStatus m_AgentStatus = EPathfindingStatus::None;
 	
