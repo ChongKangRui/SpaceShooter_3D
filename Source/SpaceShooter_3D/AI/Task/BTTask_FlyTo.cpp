@@ -11,7 +11,7 @@ EBTNodeResult::Type UBTTask_FlyTo::ExecuteTask(UBehaviorTreeComponent& OwnerComp
 
 	// Get AI Controller
 	m_AIController = OwnerComp.GetAIOwner();
-	if (!m_AIController)
+	if (!m_AIController || !m_AIController->GetBlackboardComponent())
 		return EBTNodeResult::Failed;
 
 	// Get AI Pawn
@@ -101,12 +101,14 @@ void UBTTask_FlyTo::OnAgentMoving(FVector NextPosition)
 void UBTTask_FlyTo::OnAgentStateChanged(EPathfindingStatus newStatus)
 {
 	if (newStatus == EPathfindingStatus::Success || newStatus == EPathfindingStatus::Failed) {
+
 		m_Agent->AcceptableRange = m_AgentDefaultsAcceptableRange;
 		m_Agent->OnAgentMoving.RemoveDynamic(this, &UBTTask_FlyTo::OnAgentMoving);
 		m_Agent->OnPathfindingStateChanged.RemoveDynamic(this, &UBTTask_FlyTo::OnAgentStateChanged);
 
 		if (UBehaviorTreeComponent* OwnerComp = Cast<UBehaviorTreeComponent>(m_AIController->GetBrainComponent()))
 		{
+
 			FinishLatentTask(*OwnerComp, newStatus == EPathfindingStatus::Success ? EBTNodeResult::Succeeded : EBTNodeResult::Failed);
 		}
 

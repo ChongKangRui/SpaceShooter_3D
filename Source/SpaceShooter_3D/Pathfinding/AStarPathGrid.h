@@ -85,9 +85,6 @@ struct FAStarNodeData {
 		float gCost;
 		float hCost;
 
-		//UAStarNode* Node;
-		//UAStarNode* CameFrom;
-
 		FNodeRealData* Node;
 		FNodeRealData* CameFrom;
 		
@@ -97,12 +94,6 @@ struct FAStarNodeData {
 		FAStarNodeData(FNodeRealData* n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(nullptr) {
 			Node = n;
 		}
-
-		//FORCEINLINE uint32 GetTypeHash(const FAStarNodeData& AStarNode)
-		//{
-		//	uint32 Hash = AStarNode.Node ? GetTypeHash(*AStarNode.Node) : 0;
-		//	return Hash;
-		//}
 
 		bool operator==(const FAStarNodeData& Other) const
 		{
@@ -143,10 +134,11 @@ struct FAStarNodeData {
 		}
 
 };
-
+/*In order to make TSet work for both FAStarNodeData and FNodeRealData*/
 uint32 GetTypeHash(const FAStarNodeData& AStarNode);
 uint32 GetTypeHash(const FNodeRealData& AStarNode);
 
+class UBoxComponent;
 UCLASS()
 class SPACESHOOTER_3D_API AAStarPathGrid : public AActor
 {
@@ -170,6 +162,9 @@ public:
 	FNodeRealData* GetNode(FIntVector Index);
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UBoxComponent* BoxComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Setting")
 	int GeneratedNode = 0;
 
@@ -188,12 +183,19 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UAStarNode> NodeClass;
 
+
+
 	//UPROPERTY(BlueprintReadOnly)
 	//TArray<TObjectPtr<UAStarNode>> NodeList;
 
 protected:
 	USceneComponent* SceneRoot;
 private:	
+	UFUNCTION()
+	void OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	UFUNCTION()
+	void OnComponentEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	
 	void ContructionIInitializeGrid();
 	void OnConstruction(const FTransform& Transform) override;
 	void BeginPlay() override;

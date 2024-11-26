@@ -6,6 +6,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Components/LineBatchComponent.h"
+#include "Components/BoxComponent.h"
 
 // Sets default values
 AAStarPathGrid::AAStarPathGrid()
@@ -15,6 +16,9 @@ AAStarPathGrid::AAStarPathGrid()
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
+
+	BoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
+	BoxComponent->SetupAttachment(SceneRoot);
 }
 
 void AAStarPathGrid::OnConstruction(const FTransform& Transform)
@@ -36,7 +40,12 @@ void AAStarPathGrid::BeginPlay()
 
 		GetWorld()->GetTimerManager().SetTimer(Handle, MoveDelegate, DrawUpdate, true);
 	}
+
+	BoxComponent->OnComponentBeginOverlap.AddDynamic(this, &AAStarPathGrid::OnComponentBeginOverlap);
+	BoxComponent->OnComponentEndOverlap.AddDynamic(this, &AAStarPathGrid::OnComponentEndOverlap);
+
 	RefreshPathFinding();
+	
 }
 
 uint32 GetTypeHash(const FAStarNodeData& AStarNode)
@@ -65,7 +74,15 @@ void AAStarPathGrid::RefreshPathFinding()
 
 FNodeRealData* AAStarPathGrid::GetClosestNode(FVector Position)
 {
+	if (m_IsGeneratingGrid)
+		return nullptr;
+
+
 	FIntVector Point = ConvertLocationToPoint(Position);
+
+	Point = FIntVector(FMath::Clamp(Point.X,0, SpacingBetweenNode.X - 1), FMath::Clamp(Point.Y, 0, SpacingBetweenNode.Y - 1), FMath::Clamp(Point.Z, 0, SpacingBetweenNode.Z - 1));
+
+	UE_LOG(LogTemp, Error, TEXT("Point to find %s"), *Point.ToString());
 
 	FNodeRealData* OutNode = GetNode(Point);
 	FNodeRealData* FoundNode = OutNode;
@@ -73,7 +90,7 @@ FNodeRealData* AAStarPathGrid::GetClosestNode(FVector Position)
 	if (OutNode) {
 		float shortestDistance = FVector::Dist(Position, OutNode->Location);
 
-		for (FIntVector Neighbour : FoundNode->Neightbours) {
+		for (FIntVector Neighbour : OutNode->Neightbours) {
 			FNodeRealData* CurrentNode = GetNode(Neighbour);
 
 			if (!CurrentNode)
@@ -92,6 +109,10 @@ FNodeRealData* AAStarPathGrid::GetClosestNode(FVector Position)
 
 FNodeRealData* AAStarPathGrid::GetNode(FIntVector Index) {
 	
+	if (m_IsGeneratingGrid)
+		return nullptr;
+
+
 	if (NodeDataGrid.IsValidIndex(Index.X) && NodeDataGrid[Index.X].IsValidIndex(Index.Y) && NodeDataGrid[Index.X][Index.Y].IsValidIndex(Index.Z)) {
 
 		return NodeDataGrid[Index.X][Index.Y][Index.Z];
@@ -210,6 +231,21 @@ void AAStarPathGrid::UpdateNodeValidPath()
 
 }
 
+void AAStarPathGrid::OnComponentEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor) {
+		if (OtherActor->ActorHasTag("Player")) {
+			UE_LOG(LogTemp, Error, TEXT("Dynamic Player Location"));
+			SetActorLocation(OtherActor->GetActorLocation());
+			RefreshPathFinding();
+		}
+	}
+}
+
+void AAStarPathGrid::OnComponentBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+}
+
 
 void AAStarPathGrid::GenerateGrid()
 {
@@ -236,7 +272,7 @@ void AAStarPathGrid::GenerateGrid()
 		//ConnectNeighbour();
 		ReDrawEditorDebugNodeSphere();
 
-		UE_LOG(LogTemp, Error, TEXT("%s"), NodeDataGrid.IsEmpty() ? TEXT("True") : TEXT("False"));
+		UE_LOG(LogTemp, Error, TEXT("Generate node %s"), NodeDataGrid.IsEmpty() ? TEXT("Failed") : TEXT("Success"));
 
 		m_IsGeneratingGrid = false;
 	}
