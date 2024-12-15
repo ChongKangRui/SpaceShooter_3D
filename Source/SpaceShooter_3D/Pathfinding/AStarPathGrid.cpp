@@ -124,6 +124,8 @@ FNodeRealData* AAStarPathGrid::GetNode(FIntVector Index) {
 FVector AAStarPathGrid::GetRandomLocationWithinRange(const FVector Center, const float MinimumRange, const float MaximumRange)
 {
 	FVector RandomLocation = FMath::VRand() * FMath::FRandRange(MinimumRange, MaximumRange);
+
+	DrawDebugSphere(GetWorld(), Center + RandomLocation, 300.0f, 4.0f, FColor::Yellow, false, 10.0f, 0, 2);
 	
 	return Center + RandomLocation;
 }
@@ -138,9 +140,11 @@ void AAStarPathGrid::SetNodeStatus(FIntVector Index, ENodeStatus occupiedStatus)
 
 FIntVector AAStarPathGrid::ConvertLocationToPoint(FVector Location) const
 {
+
 	FVector Divisor = GridSize * 2 / (FVector(SpacingBetweenNode) - FVector(1.0f));
 	FVector Point = ((Location - GetActorLocation()) + GridSize) / Divisor;
 
+	
 	return FIntVector(Point);
 }
 
@@ -154,7 +158,8 @@ void AAStarPathGrid::SpawnNode(const FIntVector& Point)
 {
 
 	FVector NodeLocation = ConvertPointToLocation(FVector(Point));
-	FNodeRealData* data = new FNodeRealData(GetActorLocation() + NodeLocation);
+	FNodeRealData* data = new FNodeRealData(GetActorLocation() + NodeLocation, Point);
+
 
 	if (CheckNodeCollision(data->Location)) {
 		data->Status = ENodeStatus::InvalidPath;

@@ -24,6 +24,8 @@ class SPACESHOOTER_3D_API UBTTask_FlyTo : public UBTTask_BlackboardBase
 	GENERATED_BODY()
 	
 protected:
+	UBTTask_FlyTo();
+
 	EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 
 	void UpdateTargetLocation();
@@ -31,6 +33,17 @@ protected:
 protected:
 	UPROPERTY(EditInstanceOnly);
 	TEnumAsByte<EFlyingMode> FlyingMode;
+
+
+	UPROPERTY(EditInstanceOnly, Category = General/*, meta = (EditCondition = "FlyingMode == EFlyingMode::FlyToTarget")*/);
+	bool RotateTowardTarget = true;
+
+	/*Dot product threshold, if 1.0, mean that the rotation between direction to the next position and direction to target was close enough to rotate toward*/
+	UPROPERTY(EditInstanceOnly, Category = General, meta = (EditCondition = "RotateTowardTarget"));
+	float ThresholdRotateToTarget = 0.6f;
+
+	UPROPERTY(EditInstanceOnly, Category = General/*, meta = (EditCondition = "RotateTowardTarget")*/);
+	float RotateSpeed = 50.0f;
 
 	UPROPERTY(EditInstanceOnly,Category= "RandomFlying And FlyAroundTarget", meta = (EditCondition = "FlyingMode == EFlyingMode::FlyAroundTarget || FlyingMode == EFlyingMode::RandomFlying"));
 	float MinimumRadius = 2500;
@@ -45,13 +58,11 @@ protected:
 	float MaximumAngle = 90;
 
 	UPROPERTY(EditInstanceOnly, Category = FlyToTarget, meta = (EditCondition = "FlyingMode == EFlyingMode::FlyToTarget"));
-	float DistanceToKeepTrack = 150;
+	float DistanceToKeepTrack = 1500;
 
+	/*Prevent it keep calling pathfinding location*/
 	UPROPERTY(EditInstanceOnly, Category = FlyToTarget, meta = (EditCondition = "FlyingMode == EFlyingMode::FlyToTarget"));
-	bool RotateTowardTarget = true;
-
-	UPROPERTY(EditInstanceOnly, Category = FlyToTarget, meta = (EditCondition = "RotateTowardTarget"));
-	float RotateSpeed = 50.0f;
+	float RefreshTimer = 2.0f;
 
 	UPROPERTY(EditInstanceOnly, Category = Generic);
 	float AcceptableRadius = 150;
@@ -66,6 +77,9 @@ private:
 
 	UFUNCTION()
 	void OnAgentStateChanged(EPathfindingStatus newStatus);
+
+	void RotateToTarget(FVector nextWayPoint);
+	void RotateTowardNextWayPoint(FVector nextWayPoint);
 
 private:
 	TObjectPtr<AActor> m_Target;

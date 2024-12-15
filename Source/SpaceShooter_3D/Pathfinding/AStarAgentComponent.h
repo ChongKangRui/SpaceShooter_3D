@@ -70,7 +70,7 @@ protected:
 	virtual void TickComponent(float Delta, ELevelTick type, FActorComponentTickFunction* func) override;
 
 private:
-	TArray<FVector> ReconstructPath(const FNodeRealData& Goal, const TArray<FAStarNodeData> NodeList);
+	TArray<FVector> ReconstructPath(const FNodeRealData& Goal, const TArray<TArray<TArray<FAStarNodeData>>> NodeList);
 	void AgentMove();
 
 	void DrawDebugPath(const TArray<FVector>& path);

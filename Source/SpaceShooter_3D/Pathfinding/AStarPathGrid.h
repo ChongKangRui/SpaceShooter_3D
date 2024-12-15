@@ -46,9 +46,12 @@ struct FNodeRealData {
 	GENERATED_BODY()
 public:
 	FVector Location = FVector::Zero();
+	FIntVector Coord = FIntVector::ZeroValue;
 	ENodeStatus Status = ENodeStatus::InvalidPath;
 
 	TArray<FIntVector> Neightbours;
+	/*Record if ship had taking this way with estimate arrival time*/
+	TMap<AActor*, float> PathOccupingActor;
 
 	FORCEINLINE bool CheckIsNodeOccupied() const {
 		return Status == ENodeStatus::ShipOccupied;
@@ -60,7 +63,7 @@ public:
 
 	FNodeRealData() = default;
 	// Constructor that takes an FVector parameter
-	explicit FNodeRealData(FVector loc) : Location(loc) {}
+	explicit FNodeRealData(FVector loc, FIntVector coord) : Location(loc), Coord(coord){}
 
 	bool operator==(const FNodeRealData& Other) const
 	{
@@ -70,6 +73,32 @@ public:
 	bool operator==(const FNodeRealData* Other) const
 	{
 		return this == Other;
+	}
+	void AddOccupiingAgent(AActor* agent, float arrivalTime) {
+		
+		if (!PathOccupingActor.Contains(agent)) {
+			PathOccupingActor.Add(agent, arrivalTime);
+		}
+	}
+	void RemoveOccupiingAgent(AActor* agent) {
+		
+		if (PathOccupingActor.Contains(agent)) {
+			PathOccupingActor.Remove(agent);
+		}
+	}
+
+	bool CheckIfOccupiedByAgent(AActor* agent, float arrivalTime) {
+		if (!PathOccupingActor.Contains(agent)) {
+
+			for (auto pair : PathOccupingActor) {
+				
+				if (FMath::Abs(pair.Value - arrivalTime) <= 2.0f) {
+					return true;
+				}
+			}
+
+		}
+		return false;
 	}
 
 private:
@@ -84,14 +113,17 @@ struct FAStarNodeData {
 	public:
 		float gCost;
 		float hCost;
+		float TimeToReach;
 
 		FNodeRealData* Node;
-		FNodeRealData* CameFrom;
+		//FNodeRealData* CameFrom;
+		FIntVector CameFrom;
+
 		
-		FAStarNodeData() : gCost(FLT_MAX), hCost(FLT_MAX), Node(nullptr), CameFrom(nullptr){
+		FAStarNodeData() : gCost(FLT_MAX), hCost(FLT_MAX), Node(nullptr), CameFrom(FIntVector(-1,-1,-1)){
 		}
 
-		FAStarNodeData(FNodeRealData* n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(nullptr) {
+		FAStarNodeData(FNodeRealData* n) : gCost(FLT_MAX), hCost(FLT_MAX), CameFrom(FIntVector(-1, -1, -1)) {
 			Node = n;
 		}
 
