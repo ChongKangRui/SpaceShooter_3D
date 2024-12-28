@@ -81,10 +81,14 @@ private:
 	void RotateToTarget(FVector nextWayPoint);
 	void RotateTowardNextWayPoint(FVector nextWayPoint);
 
+	FVector GetRandomLocationWithinRange(float MinimumRange, float MaximumRange, FVector Enemy, FVector Agent, int MaxAttempts = 1000);
+
 private:
 	TObjectPtr<AActor> m_Target;
 	TObjectPtr<UAStarAgentComponent> m_Agent;
 	TObjectPtr<AAIController> m_AIController;
 	float m_AgentDefaultsAcceptableRange;
+
+	float m_Time;
 	
 };

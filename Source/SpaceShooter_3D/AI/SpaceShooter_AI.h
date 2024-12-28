@@ -6,6 +6,7 @@
 #include "Character/SpaceShooter_3DCharacter.h"
 #include "SpaceShooter_AI.generated.h"
 
+class AAIController_SpaceEnemy;
 /**
  * 
  */
@@ -14,5 +15,10 @@ class SPACESHOOTER_3D_API ASpaceShooter_AI : public ASpaceShooter_3DCharacter
 {
 	GENERATED_BODY()
 
+public:
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnTakeAnyDamageBinding(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser) override;
 
+private:
+	TObjectPtr<AAIController_SpaceEnemy> m_AIController;
 };

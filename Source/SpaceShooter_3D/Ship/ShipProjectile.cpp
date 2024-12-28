@@ -14,6 +14,7 @@ AShipProjectile::AShipProjectile()
 
 	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	CollisionComponent->InitSphereRadius(15.0f);
+	CollisionComponent->SetCollisionProfileName("ProjectileCollision");
 	RootComponent = CollisionComponent;
 
 	ProjectileMovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComponent"));
@@ -26,12 +27,19 @@ AShipProjectile::AShipProjectile()
 	ProjectileMovementComponent->ProjectileGravityScale = 0.0f;
 }
 
-void AShipProjectile::HitMesh(AActor* hitActor)
+void AShipProjectile::BeginPlay()
 {
-	if (hitActor && hitActor != GetOwner()) {
-		UGameplayStatics::ApplyDamage(hitActor, m_Damage, nullptr, GetOwner(), nullptr);
+	Super::BeginPlay();
+	CollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &AShipProjectile::OnProjectileOverlap);
+}
+
+void AShipProjectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && OtherActor != GetOwner()) {
+		UGameplayStatics::ApplyDamage(OtherActor, m_Damage, GetInstigatorController(), GetOwner(), nullptr);
 		Destroy();
 	}
+	
 }
 
 void AShipProjectile::Initialization(float Damage)

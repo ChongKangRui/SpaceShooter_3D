@@ -34,18 +34,40 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TSubclassOf<AShipProjectile> ProjectileClass;
 
+	/*Reload or cool down after finish shooting*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Shoot_CD = 1.0f;
+	float Shoot_CD = 0.1f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Shoot_Damage = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TraceRadius = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float TraceDistance = 10000.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int ArmorAmount = 50;
+
+	/*Only apply when it stop shooting and still have the armor*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int ArmorRefillCD = 2.0f;
+
+	/*Will cool down after armor was down to 0*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int CoolDownCD = 4.0f;
 
 	/*If not, will only damage when bullet hit the ship*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float UseLineTraceApplyDamage = false;
+	float UseTraceApplyDamage = false;
+
+	/*If laser, this will be different way of work, use Sphere trace apply damage will be activated immedially*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsLaser;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bIsLaser"))
+	float DamageApplyFrequency = 1.0f;
 
 };
 
@@ -63,11 +85,11 @@ public:
 
 	//Press 1 to switch armor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FShipArmor> LightArmor;
+	FShipArmor LightArmor;
 
 	//Press 2 to switch armor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FShipArmor> HeavyArmor;
+	FShipArmor HeavyArmor;
 
 };
 
@@ -80,7 +102,7 @@ public:
 	ASpaceShooter_3DCharacter();
 
 	UFUNCTION(BlueprintCallable)
-	void SetShip(const EShipType& ShipType);
+	void SetShip(const EShipType& ShipToUse);
 
 	void StartFireMissle(const EWeaponType ArmorSlot);
 	void StopFireMissle(const EWeaponType ArmorSlot);
@@ -92,7 +114,7 @@ public:
 	bool bRandomizeMesh = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true", EditCondition = "bRandomizeMesh = false"))
-	TEnumAsByte<EShipType> ShipMeshType = EShipType::GoldenVector;
+	TEnumAsByte<EShipType> ShipType = EShipType::GoldenVector;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AIAgent, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAStarAgentComponent> AgentComponent;
@@ -102,16 +124,20 @@ public:
 
 
 protected:
+	UFUNCTION()
+	virtual void OnTakeAnyDamageBinding(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+
 	virtual const FVector GetShootLocation() const;
 	/*Normalized direction*/
 	virtual const FVector GetShootDirection() const;
 	virtual void BeginPlay() override;
+	
 	/*MissleSlot was refer to which missle to shoot*/
 
-	void FireMissle(const EWeaponType ArmorSlot, const int WeaponSlot);
-
+	void FireMissle(const EWeaponType ArmorSlot);
 private:
 	void DataTableAssetInitialization();
+	
 	void ResetShootingTimer(const EWeaponType ArmorSlot);
 
 private:
@@ -125,9 +151,12 @@ private:
 
 	TArray<TSubclassOf<AActor>> m_ShipMeshArray;
 
-	TMap<TEnumAsByte<EWeaponType>, int> m_CurrentWeapon;
+	TMap<TEnumAsByte<EWeaponType>, int> m_CurrentWeaponArmorAmount;
 
 	FShipAttribute m_ShipAttribute;
 	TObjectPtr<UDataTable> m_DataTableAsset;
+
+	float m_CurrentHealth;
+
 };
 

@@ -41,3 +41,13 @@ void AAIController_SpaceEnemy::SetTargetFromTag()
 
     }
 }
+
+bool AAIController_SpaceEnemy::HaveTarget() const
+{
+    if (const UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+    {
+        auto target = BlackboardComp->GetValueAsObject(TEXT("Target"));
+        return target ? true : false;
+    }
+    return false;
+}

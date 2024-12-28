@@ -19,6 +19,8 @@ public:
 	void SetTargetAsPlayer();
 	UFUNCTION(BlueprintCallable)
 	void SetTargetFromTag();
+	UFUNCTION(BlueprintCallable)
+	bool HaveTarget() const;
 	
 public:
 	UPROPERTY(EditAnywhere)
