@@ -267,7 +267,7 @@ void Heapify(TArray<FAStarNodeData>& list, int i)
 	}
 }
 
-void UAStarAgentComponent::MoveTo(FVector Goal)
+void UAStarAgentComponent::MoveTo(FVector Goal, AActor* TrackTarget)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(MoveTo);
 	if (!m_Agent) {
@@ -365,7 +365,7 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 							UE_LOG(LogTemp, Error, TEXT("Found Path Number: %i"), m_Path.Num());
 
 						});
-					UE_LOG(LogTemp, Error, TEXT("oi"));
+					//UE_LOG(LogTemp, Error, TEXT("oi"));
 					return;
 				}
 
@@ -382,25 +382,24 @@ void UAStarAgentComponent::MoveTo(FVector Goal)
 						FNodeRealData* Neighbor = m_PathGrid->GetNode(NeighborIndex);
 						FAStarNodeData NeighborClosedData = ClosedList[NeighborIndex.X][NeighborIndex.Y][NeighborIndex.Z];
 
-						bool NeighbourPassThrough = true;;
+						bool NeighbourPassThrough = true;
+						float arrivalTime = TotalDistance / FlyingSpeed;
 
 						if (!NeighborClosedData.Node) {
 							NeighbourPassThrough = false;
 							
 						}
 
-						if (Neighbor == nullptr)
+						if (Neighbor == nullptr || Neighbor->CheckIsNodeInvalid() || (OpenList.Num() > 0 && Neighbor->CheckIfOccupiedByAgent(GetOwner(), arrivalTime)))
 							continue;
 						
-						if (Neighbor->CheckIsNodeInvalid())
-							continue;
 						//
-						float arrivalTime = TotalDistance / FlyingSpeed;
+	
 						///*Check if any agent will pass through this path*/
-						if (OpenList.Num() > 0 && Neighbor->CheckIfOccupiedByAgent(GetOwner(), arrivalTime)) {
-							UE_LOG(LogTemp, Error, TEXT("Skip because occupied by other agent"));
-							continue;
-						}
+						//if (OpenList.Num() > 0 && Neighbor->CheckIfOccupiedByAgent(GetOwner(), arrivalTime)) {
+						//	UE_LOG(LogTemp, Error, TEXT("Skip because occupied by other agent"));
+						//	continue;
+						//}
 						//
 						//if (ClosedCoord.Contains(NeighborIndex))
 						//{

@@ -50,25 +50,25 @@ void ASpaceShip_PlayerController::SetupInputComponent()
 			enhancedInputComponent->BindAction(speeding, ETriggerEvent::Canceled, this, &ASpaceShip_PlayerController::StopSpeeding);
 		}
 		if (const UInputAction* LightArmorShoot = PlayerMappingDataset->LightArmorShootAction.Get()) {
-			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::StartFireMissle, EWeaponType::LightArmor);
-			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::LightArmor);
-			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::LightArmor);
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Triggered, m_Player.Get(), &ASpaceShooter_3DCharacter::FireWeapon, EWeaponType::Light);
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopWeapon, EWeaponType::Light);
+			enhancedInputComponent->BindAction(LightArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopWeapon, EWeaponType::Light);
 
 		}
 
 		if (const UInputAction* HeavyArmorShoot = PlayerMappingDataset->HeavyArmorShootAction.Get()) {
-			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::StartFireMissle, EWeaponType::HeavyArmor);
-			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::HeavyArmor);
-			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopFireMissle, EWeaponType::HeavyArmor);
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Triggered, m_Player.Get(), &ASpaceShooter_3DCharacter::FireWeapon, EWeaponType::Heavy);
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Completed, m_Player.Get(), &ASpaceShooter_3DCharacter::StopWeapon, EWeaponType::Heavy);
+			enhancedInputComponent->BindAction(HeavyArmorShoot, ETriggerEvent::Canceled, m_Player.Get(), &ASpaceShooter_3DCharacter::StopWeapon, EWeaponType::Heavy);
 
 		}
 
 		if (const UInputAction* LightArmorSwitch = PlayerMappingDataset->LightArmorSwitch.Get()) {
-			enhancedInputComponent->BindAction(LightArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::LightArmor);
+			enhancedInputComponent->BindAction(LightArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::Light);
 			
 		}
 		if (const UInputAction* HeavyArmorSwitch = PlayerMappingDataset->HeavyArmorSwitch.Get()) {
-			enhancedInputComponent->BindAction(HeavyArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::HeavyArmor);
+			enhancedInputComponent->BindAction(HeavyArmorSwitch, ETriggerEvent::Started, m_Player.Get(), &ASpaceShooter_3DCharacter::SwitchWeapon, EWeaponType::Heavy);
 			
 		}
 		
@@ -138,8 +138,19 @@ void ASpaceShip_PlayerController::Move(const FInputActionValue& Value)
 	const FVector ForwardDirection = ForwardBackDirection();;
 
 	// add movement 
-	m_Player->AddMovementInput(ForwardDirection, MovementVector.Y);
-	m_Player->AddMovementInput(RightDirection, MovementVector.X);
+	//m_Player->AddMovementInput(ForwardDirection, MovementVector.Y);
+	//m_Player->AddMovementInput(RightDirection, MovementVector.X);
+
+	if (MovementVector.Y > 0.0f) // W key pressed (forward)
+	{
+		// Apply full forward movement
+		m_Player->AddMovementInput(ForwardDirection, MovementVector.Y);
+		m_Player->GetCharacterMovement()->BrakingDecelerationFlying = 150.0f;
+	}
+	else if (MovementVector.Y < 0.0f) // S key pressed (stop/decelerate instead of backward)
+	{
+		m_Player->GetCharacterMovement()->BrakingDecelerationFlying = FMath::Clamp(m_Player->GetCharacterMovement()->BrakingDecelerationFlying + 2.0f, 0, 500);
+	}
 
 }
 

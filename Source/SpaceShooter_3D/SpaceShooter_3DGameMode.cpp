@@ -12,3 +12,19 @@ ASpaceShooter_3DGameMode::ASpaceShooter_3DGameMode()
 	//	DefaultPawnClass = PlayerPawnBPClass.Class;
 	//}
 }
+
+FShipAttribute ASpaceShooter_3DGameMode::GetAttribute(const EShipType& ShipToUse) const
+{
+	if (!ShipData) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable"));
+		return FShipAttribute();
+	}
+	FString ShipString = UEnum::GetValueAsString(ShipToUse);
+	const FShipAttribute* data = ShipData->FindRow<FShipAttribute>(FName(ShipString), TEXT("Searching Ship data from data table"));
+
+	if (!data) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable Row"));
+		return FShipAttribute();
+	}
+	return *data;
+}

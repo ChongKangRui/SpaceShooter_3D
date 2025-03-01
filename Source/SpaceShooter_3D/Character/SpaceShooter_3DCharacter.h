@@ -10,6 +10,10 @@
 
 class UAStarAgentComponent;
 class AShipProjectile;
+class ALaserBase;
+class UNiagaraSystem;
+class UNiagaraComponent;
+class UPaperSprite;
 
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -21,13 +25,14 @@ enum EShipType {
 	SpaceShip3
 };
 
+UENUM(Blueprintable)
 enum EWeaponType {
-	LightArmor,
-	HeavyArmor
+	Light,
+	Heavy
 };
 
 USTRUCT(Blueprintable)
-struct FShipArmor {
+struct FShipWeapon {
 	GENERATED_BODY();
 
 public:
@@ -48,7 +53,7 @@ public:
 	float TraceDistance = 10000.0f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int ArmorAmount = 50;
+	int AmmunitionAmount = 50;
 
 	/*Only apply when it stop shooting and still have the armor*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -60,15 +65,25 @@ public:
 
 	/*If not, will only damage when bullet hit the ship*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float UseTraceApplyDamage = false;
+	bool UseTraceApplyDamage = false;
 
-	/*If laser, this will be different way of work, use Sphere trace apply damage will be activated immedially*/
+	/*If laser, this will be different way of work, use Sphere trace apply damage will be activated immedially, damage frequency will be using Shoot_CD*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsLaser;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bIsLaser"))
-	float DamageApplyFrequency = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MissleTracking)
+	bool CanTrackEnemy = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MissleTracking)
+	float TrackingRotateSpeed = 10.0f;
+
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "bIsLaser"))
+	//float DamageApplyFrequency = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = VFX)
+	UNiagaraSystem* HitEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPaperSprite* WeaponIcon;
 };
 
 
@@ -81,15 +96,15 @@ public:
 	TSubclassOf<AActor> ShipMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float MaxHealth;
+	float MaxHealth = 100.0f;
 
 	//Press 1 to switch armor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FShipArmor LightArmor;
+	FShipWeapon LightWeapon;
 
 	//Press 2 to switch armor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FShipArmor HeavyArmor;
+	FShipWeapon HeavyWeapon;
 
 };
 
@@ -104,9 +119,36 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetShip(const EShipType& ShipToUse);
 
-	void StartFireMissle(const EWeaponType ArmorSlot);
-	void StopFireMissle(const EWeaponType ArmorSlot);
+	UFUNCTION(BlueprintCallable)
+	bool IsInitialized() const;
 
+	UFUNCTION(BlueprintPure)
+	bool GetIsWeaponLaser(EWeaponType WeaponSlot) const;
+
+	UFUNCTION(BlueprintPure)
+	UPaperSprite* GetWeaponIcon(EWeaponType WeaponSlot) const;
+
+	UFUNCTION(BlueprintPure)
+	float GetMaxHealth() const;
+
+	UFUNCTION(BlueprintPure)
+	float GetCurrentHealth() const;
+
+	UFUNCTION(BlueprintPure)
+	float GetCurrentWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const;
+
+	UFUNCTION(BlueprintPure)
+	float GetMaxWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const;
+
+
+
+
+	void FireWeapon(const EWeaponType WeaponSlot);
+
+	//void StartFireMissle(const EWeaponType WeaponSlot);
+	
+	virtual void StopWeapon(const EWeaponType WeaponSlot);
+	
 	void SwitchWeapon(const EWeaponType ArmorSlot);
 
 public:
@@ -130,31 +172,43 @@ protected:
 	virtual const FVector GetShootLocation() const;
 	/*Normalized direction*/
 	virtual const FVector GetShootDirection() const;
+	virtual const FVector GetRandomShootOffset() const;
+	/*This will mainly just used for AI*/
+	virtual AActor* GetMissleTrackEnemy() const;
 	virtual void BeginPlay() override;
 	
 	/*MissleSlot was refer to which missle to shoot*/
 
-	void FireMissle(const EWeaponType ArmorSlot);
+	void FireMissle(const EWeaponType WeaponSlot);
+	void FireLaser(const EWeaponType WeaponSlot);
+
+	bool CanShoot(const EWeaponType WeaponSlot) const;
+	bool IsAmmoOut(const EWeaponType WeaponSlot) const;
+	void StartWeaponTimer(const EWeaponType WeaponSlot);
+
 private:
-	void DataTableAssetInitialization();
-	
-	void ResetShootingTimer(const EWeaponType ArmorSlot);
+	//void DataTableAssetInitialization();
 
 private:
 	//Light Armor
-	TArray<USceneComponent*> m_LightArmorFirePoint;
+	TArray<USceneComponent*> m_LightWeaponFirePoint;
 	//Heavy Armor
-	TArray<USceneComponent*> m_HeavyArmorFirePoint;
+	TArray<USceneComponent*> m_HeavyWeaponFirePoint;
+	TArray<ALaserBase*> m_LaserInstance;
 
-	FTimerHandle m_LightArmor_Timer;
-	FTimerHandle m_HeavyArmor_Timer;
+	FTimerHandle m_LightWeaponReload_Timer;
+	FTimerHandle m_HeavyWeaponReload_Timer;
 
 	TArray<TSubclassOf<AActor>> m_ShipMeshArray;
 
-	TMap<TEnumAsByte<EWeaponType>, int> m_CurrentWeaponArmorAmount;
+	TMap<TEnumAsByte<EWeaponType>, int> m_CurrentWeaponAmmunitionAmount;
+	TMap<TEnumAsByte<EWeaponType>, bool> m_AllowToFireMissle;
+	
 
 	FShipAttribute m_ShipAttribute;
-	TObjectPtr<UDataTable> m_DataTableAsset;
+	//TObjectPtr<UDataTable> m_DataTableAsset;
+	TWeakObjectPtr<UNiagaraComponent> m_LaserVFXInstance;
+
 
 	float m_CurrentHealth;
 

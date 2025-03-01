@@ -13,7 +13,7 @@ void AAIController_SpaceEnemy::SetTargetAsPlayer()
         if (auto pc = GetWorld()->GetFirstPlayerController()) {
             // Set an Object Value (like another Actor)
             AActor* TargetActor = pc->GetPawn();
-
+            Target = TargetActor;
             if (TargetActor)
                 BlackboardComp->SetValueAsObject(TEXT("Target"), TargetActor);
             else
@@ -38,6 +38,7 @@ void AAIController_SpaceEnemy::SetTargetFromTag()
         int randomInt = FMath::RandRange(0, foundActors.Num() - 1);
 
         BlackboardComp->SetValueAsObject(TEXT("Target"), foundActors[randomInt]);
+        Target = foundActors[randomInt];
 
     }
 }
@@ -50,4 +51,9 @@ bool AAIController_SpaceEnemy::HaveTarget() const
         return target ? true : false;
     }
     return false;
+}
+
+AActor* AAIController_SpaceEnemy::GetTarget() const
+{
+    return Target;
 }

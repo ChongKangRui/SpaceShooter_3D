@@ -18,7 +18,8 @@ class SPACESHOOTER_3D_API ASpaceShooter_AI : public ASpaceShooter_3DCharacter
 public:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnTakeAnyDamageBinding(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser) override;
-
+	virtual const FVector GetShootDirection() const override;
+	virtual AActor* GetMissleTrackEnemy() const override;
 private:
 	TObjectPtr<AAIController_SpaceEnemy> m_AIController;
 };

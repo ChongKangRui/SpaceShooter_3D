@@ -21,6 +21,8 @@ public:
 	void SetTargetFromTag();
 	UFUNCTION(BlueprintCallable)
 	bool HaveTarget() const;
+	UFUNCTION(BlueprintCallable)
+	AActor* GetTarget() const;
 	
 public:
 	UPROPERTY(EditAnywhere)

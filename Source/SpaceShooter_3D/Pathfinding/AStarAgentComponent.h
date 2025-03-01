@@ -30,7 +30,7 @@ public:
 	UAStarAgentComponent();
 	
 	UFUNCTION(BlueprintCallable)
-	void MoveTo(FVector Goal);
+	void MoveTo(FVector Goal, AActor* TrackTarget = nullptr);
 
 	UFUNCTION(BlueprintPure)
 	EPathfindingStatus GetAgentStatus() const;
@@ -49,7 +49,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
 	float AcceptableRange = 50.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PathFinding)
-	float PenaltyWeight = 500.0f;
+	float PenaltyWeight = 10000.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")
 	bool EnableBezierPath = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PathFinding|BezierPath")

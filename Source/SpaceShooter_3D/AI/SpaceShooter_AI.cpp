@@ -35,3 +35,13 @@ void ASpaceShooter_AI::OnTakeAnyDamageBinding(AActor* DamagedActor, float Damage
 		}
 	}
 }
+
+const FVector ASpaceShooter_AI::GetShootDirection() const
+{
+	return m_AIController->HaveTarget() ? (m_AIController->GetTarget()->GetActorLocation() - GetActorLocation()).GetSafeNormal() : GetActorForwardVector();
+}
+
+AActor* ASpaceShooter_AI::GetMissleTrackEnemy() const
+{
+	return m_AIController->GetTarget();
+}

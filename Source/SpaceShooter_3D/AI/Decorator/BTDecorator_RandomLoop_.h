@@ -22,6 +22,8 @@ public:
 
     UPROPERTY(EditAnywhere, Category = "Random Loop")
     int32 MaxLoopCount = 3;
+
+
 protected:
 	virtual void OnNodeActivation(FBehaviorTreeSearchData& SearchData) override;
 

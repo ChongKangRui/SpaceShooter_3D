@@ -7,7 +7,14 @@
 #include "GameFramework/Controller.h"
 #include "Pathfinding/AStarAgentComponent.h"
 #include "Ship/ShipProjectile.h"
+#include "Ship/LaserBase.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
 #include "InputActionValue.h"
+#include "SpaceShooter_3DGameMode.h"
+#include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -41,7 +48,7 @@ ASpaceShooter_3DCharacter::ASpaceShooter_3DCharacter()
 
 	ShipChildActor->SetChildActorClass(AActor::StaticClass());
 
-	DataTableAssetInitialization();
+	//DataTableAssetInitialization();
 }
 
 const FVector ASpaceShooter_3DCharacter::GetShootLocation() const
@@ -52,6 +59,16 @@ const FVector ASpaceShooter_3DCharacter::GetShootLocation() const
 const FVector ASpaceShooter_3DCharacter::GetShootDirection() const
 {
 	return GetActorForwardVector();
+}
+
+const FVector ASpaceShooter_3DCharacter::GetRandomShootOffset() const
+{
+	return FVector();
+}
+
+AActor* ASpaceShooter_3DCharacter::GetMissleTrackEnemy() const
+{
+	return nullptr;
 }
 
 void ASpaceShooter_3DCharacter::BeginPlay()
@@ -73,12 +90,12 @@ void ASpaceShooter_3DCharacter::BeginPlay()
 	if (const AActor* Ship = ShipChildActor->GetChildActor()) {
 		for (UActorComponent* ac : Ship->GetComponentsByTag(USceneComponent::StaticClass(), "Light")) {
 			if (USceneComponent* sc = Cast<USceneComponent>(ac)) {
-				m_LightArmorFirePoint.Add(sc);
+				m_LightWeaponFirePoint.Add(sc);
 			}
 		}
 		for (UActorComponent* ac : Ship->GetComponentsByTag(USceneComponent::StaticClass(), "Heavy")) {
 			if (USceneComponent* sc = Cast<USceneComponent>(ac)) {
-				m_HeavyArmorFirePoint.Add(sc);
+				m_HeavyWeaponFirePoint.Add(sc);
 			}
 		}
 
@@ -86,60 +103,177 @@ void ASpaceShooter_3DCharacter::BeginPlay()
 
 	m_CurrentHealth = m_ShipAttribute.MaxHealth;
 
+	m_AllowToFireMissle.Add(EWeaponType::Light, true);
+	m_AllowToFireMissle.Add(EWeaponType::Heavy, true);
+
+	m_CurrentWeaponAmmunitionAmount.Add(EWeaponType::Light, m_ShipAttribute.LightWeapon.AmmunitionAmount);
+	m_CurrentWeaponAmmunitionAmount.Add(EWeaponType::Heavy, m_ShipAttribute.HeavyWeapon.AmmunitionAmount);
+
 	OnTakeAnyDamage.AddDynamic(this, &ASpaceShooter_3DCharacter::OnTakeAnyDamageBinding);
 }
 
-void ASpaceShooter_3DCharacter::DataTableAssetInitialization()
-{
-	//Get datatable
-	static ConstructorHelpers::FObjectFinder<UDataTable> dataTablePath(TEXT("/Script/Engine.DataTable'/Game/Data/DT_ShipAttribute.DT_ShipAttribute'"));
-	m_DataTableAsset = dataTablePath.Object;
-}
+//void ASpaceShooter_3DCharacter::DataTableAssetInitialization()
+//{
+//	//Get datatable
+//	static ConstructorHelpers::FObjectFinder<UDataTable> dataTablePath(TEXT("/Script/Engine.DataTable'/Game/Data/DT_ShipAttribute.DT_ShipAttribute'"));
+//	m_DataTableAsset = dataTablePath.Object;
+//}
 
 
-void ASpaceShooter_3DCharacter::ResetShootingTimer(const EWeaponType ArmorSlot)
+
+//void ASpaceShooter_3DCharacter::StartFireMissle(const EWeaponType WeaponSlot)
+//{
+//	//StopFireMissle(ArmorSlot);
+//
+//
+//	if (!CanShoot(WeaponSlot))
+//		return;
+//
+//	FireMissle(WeaponSlot);
+//
+//	m_AllowToFireMissle[WeaponSlot] = false;
+//	m_CurrentWeaponAmmunitionAmount[WeaponSlot]--;
+//
+//	//UE_LOG(LogTemp, Error, TEXT("Remain Armor %i"), m_CurrentWeaponArmorAmount[ArmorSlot]);
+//
+//	StartWeaponTimer(WeaponSlot);
+//}
+
+void ASpaceShooter_3DCharacter::FireLaser(const EWeaponType WeaponSlot)
 {
-	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
-	if (GetWorld()->GetTimerManager().IsTimerActive(currentTimer)) {
-		StartFireMissle(ArmorSlot);
+	const TArray<USceneComponent*>& Arr = WeaponSlot == Light ? m_LightWeaponFirePoint : m_HeavyWeaponFirePoint;
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+
+	if (Arr.Num() == 0) {
+		UE_LOG(LogTemp, Error, TEXT("Armor Firing failed, no SceneComponent reference in Array"));
+		return;
+	}
+
+	if (!weaponInfo.ProjectileClass) {
+		UE_LOG(LogTemp, Error, TEXT("Invalid Projectile Class"));
+		return;
+	}
+
+	FHitResult OutHit;
+	FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(FireMissle), /*bTraceComplex=*/ true, /*IgnoreActor=*/ ShipChildActor->GetChildActor());
+	const ECollisionChannel TraceChannel = ECC_GameTraceChannel2;
+
+	//FRotator TargetDirectionRot = GetShootDirection().Rotation();
+	//FRotator newRotation = FMath::RInterpConstantTo(GetActorRotation(), TargetDirectionRot, GetWorld()->GetDeltaSeconds(), 50);
+
+	FVector TraceStartLocation = GetShootLocation();
+	FVector TraceEndLocation = TraceStartLocation + (GetShootDirection() * weaponInfo.TraceDistance);
+
+	bool bHit = GetWorld()->SweepSingleByProfile(
+		OutHit,
+		TraceStartLocation,
+		TraceEndLocation,
+		FQuat::Identity,
+		FName("ShipCollision"),
+		FCollisionShape::MakeSphere(weaponInfo.TraceRadius),
+		TraceParams
+	);
+
+	//if(bHit)
+		//UE_LOG(LogTemp, Error, TEXT("wwwww"));
+
+	if (OutHit.GetActor()) {
+		UGameplayStatics::ApplyDamage(OutHit.GetActor(), weaponInfo.Shoot_Damage, GetInstigatorController(), GetOwner(), nullptr);
+	}
+
+	if (m_LaserInstance.Num() > 0) {
+
+		for (auto laser : m_LaserInstance) {
+			FVector Direction = bHit ? (OutHit.Location - laser->GetActorLocation()).GetSafeNormal() : (OutHit.TraceEnd - laser->GetActorLocation()).GetSafeNormal();
+			FRotator Rotation = Direction.Rotation();
+
+			float Length = bHit ? FVector::Dist(OutHit.Location, laser->GetActorLocation()) : FVector::Dist(OutHit.TraceEnd, laser->GetActorLocation());
+
+
+			FRotator laserRotation = laser->GetActorRotation();
+			
+			laser->SetActorRotation(Rotation);
+			//laser->SetActorRotation(Rotation);
+			laser->SetLaserLength(Length);
+			if (bHit) {
+				if (weaponInfo.HitEffect)
+				{
+					if (m_LaserVFXInstance.IsValid()) {
+						m_LaserVFXInstance->SetWorldLocation(OutHit.GetActor()->GetActorLocation());
+					}
+					else {
+						// Spawn the Niagara system
+						m_LaserVFXInstance = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), weaponInfo.HitEffect, OutHit.GetActor()->GetActorLocation(), FRotator::ZeroRotator);
+					}
+				}
+
+				if (OutHit.GetActor()) {
+					UGameplayStatics::ApplyDamage(OutHit.GetActor(), weaponInfo.Shoot_Damage, GetInstigatorController(), this, nullptr);
+					UE_LOG(LogTemp, Error, TEXT("Damage Apply %f"), Length);
+				}
+
+			}
+			else {
+				if (m_LaserVFXInstance.IsValid())
+					m_LaserVFXInstance->DestroyInstance();
+			}
+
+		}
+		return;
+
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	// Optionally set the owner and instigator
+	SpawnParams.Owner = ShipChildActor->GetChildActor();
+	SpawnParams.Instigator = this;
+
+	for (USceneComponent* sc : Arr) {
+		//Spawn Missle
+		if (sc) {
+			FVector Direction = bHit ? (OutHit.Location - sc->GetComponentLocation()).GetSafeNormal() : (OutHit.TraceEnd - sc->GetComponentLocation()).GetSafeNormal();
+			FRotator SpawnRotation = Direction.Rotation();
+
+			// Spawn the actor (replace AMyActor with your actor class)
+			ALaserBase* SpawnedActor = GetWorld()->SpawnActor<ALaserBase>(weaponInfo.ProjectileClass, sc->GetComponentLocation(), SpawnRotation, SpawnParams);
+			m_LaserInstance.Add(SpawnedActor);
+
+			SpawnedActor->AttachToComponent(sc, FAttachmentTransformRules::KeepRelativeTransform);
+			SpawnedActor->SetActorRelativeLocation(FVector::Zero());
+			SpawnedActor->SetActorRelativeRotation(FRotator::ZeroRotator);
+			
+
+			SpawnedActor->InitializeLifeTime(m_CurrentWeaponAmmunitionAmount[WeaponSlot] * weaponInfo.Shoot_CD);
+			//if (SpawnedActor)
+			//	SpawnedActor->Initialization(weaponInfo.Shoot_Damage, nullptr, weaponInfo.TrackingRotateSpeed);
+		}
+
 	}
 }
 
-void ASpaceShooter_3DCharacter::StartFireMissle(const EWeaponType ArmorSlot)
+void ASpaceShooter_3DCharacter::StopWeapon(const EWeaponType WeaponSlot)
 {
-	StopFireMissle(ArmorSlot);
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
 
-	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
-	FTimerDelegate ShootDelegate;
+	if (weaponInfo.bIsLaser) {
+		for (auto laser : m_LaserInstance) {
+			laser->Destroy();
+		}
 
-	const FShipArmor& WeaponArmorArr = ArmorSlot == HeavyArmor ? m_ShipAttribute.HeavyArmor : m_ShipAttribute.LightArmor;
+		m_LaserInstance.Empty();
 
-
-	ShootDelegate.BindWeakLambda(this, [&, ArmorSlot]()
-		{
-
-			FireMissle(ArmorSlot);
-		});
-
-	GetWorld()->GetTimerManager().SetTimer(currentTimer, ShootDelegate, WeaponArmorArr.Shoot_CD, true);
-
-
-}
-
-void ASpaceShooter_3DCharacter::StopFireMissle(const EWeaponType ArmorSlot)
-{
-	FTimerHandle& currentTimer = ArmorSlot == HeavyArmor ? m_HeavyArmor_Timer : m_LightArmor_Timer;
-
-	if (GetWorld()->GetTimerManager().IsTimerActive(currentTimer)) {
-		GetWorld()->GetTimerManager().ClearTimer(currentTimer);
-		currentTimer.Invalidate();
+		if (m_LaserVFXInstance.IsValid())
+			m_LaserVFXInstance->DestroyInstance();
 	}
+
 }
 
-void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot)
+void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType WeaponSlot)
 {
-	const TArray<USceneComponent*>& Arr = ArmorSlot == LightArmor ? m_LightArmorFirePoint : m_HeavyArmorFirePoint;
-	const FShipArmor& weaponInfo = ArmorSlot == HeavyArmor ? m_ShipAttribute.HeavyArmor : m_ShipAttribute.LightArmor;
+	const TArray<USceneComponent*>& Arr = WeaponSlot == Light ? m_LightWeaponFirePoint : m_HeavyWeaponFirePoint;
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
 
 	if (Arr.Num() == 0) {
 		UE_LOG(LogTemp, Error, TEXT("Armor Firing failed, no SceneComponent reference in Array"));
@@ -158,21 +292,21 @@ void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot)
 	FVector TraceStartLocation = GetShootLocation();
 	FVector TraceEndLocation = TraceStartLocation + (GetShootDirection() * weaponInfo.TraceDistance);
 
-	bool bHit = GetWorld()->SweepSingleByChannel(
+	bool bHit = GetWorld()->SweepSingleByProfile(
 		OutHit,
 		TraceStartLocation,
 		TraceEndLocation,
 		FQuat::Identity,
-		TraceChannel,
+		FName("ShipCollision"),
 		FCollisionShape::MakeSphere(weaponInfo.TraceRadius),
 		TraceParams
-	); 
+	);
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	// Optionally set the owner and instigator
-	SpawnParams.Owner = this;  // 'this' could be the actor spawning the new one
+	SpawnParams.Owner = ShipChildActor->GetChildActor();
 	SpawnParams.Instigator = this;
 
 
@@ -187,12 +321,51 @@ void ASpaceShooter_3DCharacter::FireMissle(const EWeaponType ArmorSlot)
 			// Spawn the actor (replace AMyActor with your actor class)
 			AShipProjectile* SpawnedActor = GetWorld()->SpawnActor<AShipProjectile>(weaponInfo.ProjectileClass, sc->GetComponentLocation(), SpawnRotation, SpawnParams);
 
-			if(SpawnedActor)
-				SpawnedActor->Initialization(weaponInfo.Shoot_Damage);
+			AActor* TrackTarget = GetMissleTrackEnemy() ? GetMissleTrackEnemy() : OutHit.GetActor();
+
+
+			UE_LOG(LogTemp, Error, TEXT("IS Track Target Valid? %s"), OutHit.GetActor() ? TEXT("Valid") : TEXT("Invalid"));
+			if (SpawnedActor)
+				SpawnedActor->Initialization(weaponInfo.Shoot_Damage, weaponInfo.CanTrackEnemy ? TrackTarget : nullptr, weaponInfo.TrackingRotateSpeed, weaponInfo.HitEffect);
 		}
 
 	}
 
+
+}
+
+bool ASpaceShooter_3DCharacter::CanShoot(const EWeaponType WeaponSlot) const
+{
+	return m_AllowToFireMissle[WeaponSlot];
+}
+
+bool ASpaceShooter_3DCharacter::IsAmmoOut(const EWeaponType WeaponSlot) const
+{
+
+	return m_CurrentWeaponAmmunitionAmount[WeaponSlot] <= 0;
+}
+
+void ASpaceShooter_3DCharacter::StartWeaponTimer(const EWeaponType WeaponSlot)
+{
+	const FShipWeapon& WeaponAttribute = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+	FTimerHandle& currentReloadTimer = WeaponSlot == Heavy ? m_HeavyWeaponReload_Timer : m_LightWeaponReload_Timer;
+
+	FTimerHandle TempTimer;
+	FTimerDelegate ShootDelegate, ReloadDelegate;
+
+	ShootDelegate.BindWeakLambda(this, [&, WeaponSlot]()
+		{
+			m_AllowToFireMissle[WeaponSlot] = true;
+		});
+	GetWorld()->GetTimerManager().SetTimer(TempTimer, ShootDelegate, 0.01f, false, WeaponAttribute.Shoot_CD);
+
+	/*Reload*/
+	GetWorld()->GetTimerManager().ClearTimer(currentReloadTimer);
+	ReloadDelegate.BindWeakLambda(this, [&, WeaponSlot]()
+		{
+			m_CurrentWeaponAmmunitionAmount[WeaponSlot] = WeaponAttribute.AmmunitionAmount;
+		});
+	GetWorld()->GetTimerManager().SetTimer(currentReloadTimer, ReloadDelegate, 0.01f, false, m_CurrentWeaponAmmunitionAmount[WeaponSlot] > 0 ? WeaponAttribute.ArmorRefillCD : WeaponAttribute.CoolDownCD);
 
 }
 
@@ -230,28 +403,84 @@ void ASpaceShooter_3DCharacter::SwitchWeapon(const EWeaponType ArmorSlot)
 void ASpaceShooter_3DCharacter::SetShip(const EShipType& ShipToUse)
 {
 
-	if (!m_DataTableAsset) {
-		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable"));
+	if (const auto GM = GetWorld()->GetAuthGameMode<ASpaceShooter_3DGameMode>()) {
+
+		m_ShipAttribute = GM->GetAttribute(ShipToUse);
+
+		if (m_ShipAttribute.ShipMesh) {
+			// Spawn the actor from the class
+			ShipChildActor->SetChildActorClass(m_ShipAttribute.ShipMesh);
+			UE_LOG(LogTemp, Error, TEXT("valid Ship Data"));
+		}
+		else {
+			UE_LOG(LogTemp, Error, TEXT("Invalid Ship Data"));
+		}
+	}
+}
+
+
+bool ASpaceShooter_3DCharacter::GetIsWeaponLaser(EWeaponType WeaponSlot) const
+{
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+	return weaponInfo.bIsLaser;
+}
+
+UPaperSprite* ASpaceShooter_3DCharacter::GetWeaponIcon(EWeaponType WeaponSlot) const
+{
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+	return weaponInfo.WeaponIcon;
+}
+
+float ASpaceShooter_3DCharacter::GetMaxHealth() const
+{
+	return  m_ShipAttribute.MaxHealth;
+}
+
+float ASpaceShooter_3DCharacter::GetCurrentHealth() const
+{
+	return m_CurrentHealth;
+}
+
+float ASpaceShooter_3DCharacter::GetCurrentWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const
+{
+
+	return m_CurrentWeaponAmmunitionAmount[weaponType];
+}
+
+float ASpaceShooter_3DCharacter::GetMaxWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const
+{
+	const FShipWeapon& weaponInfo = weaponType == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+	return weaponInfo.AmmunitionAmount;
+
+}
+
+bool ASpaceShooter_3DCharacter::IsInitialized() const
+{
+	return m_ShipAttribute.ShipMesh ? true : false;
+}
+
+void ASpaceShooter_3DCharacter::FireWeapon(const EWeaponType WeaponSlot)
+{
+	if (!CanShoot(WeaponSlot)) {
 		return;
 	}
-	FString ShipString = UEnum::GetValueAsString(ShipToUse);
-	const FShipAttribute* data = m_DataTableAsset->FindRow<FShipAttribute>(FName(ShipString), TEXT("Searching Ship data from data table"));
 
-	if (!data) {
-		UE_LOG(LogTemp, Error, TEXT("Invalid DataTable Row"));
+	if (IsAmmoOut(WeaponSlot)) {
+		StopWeapon(WeaponSlot);
+		UE_LOG(LogTemp, Error, TEXT("Out of ammo"));
 		return;
 	}
 
-	m_ShipAttribute = *data;
+	const FShipWeapon& weaponInfo = WeaponSlot == Heavy ? m_ShipAttribute.HeavyWeapon : m_ShipAttribute.LightWeapon;
+	if (weaponInfo.bIsLaser)
+		FireLaser(WeaponSlot);
+	else
+		FireMissle(WeaponSlot);
 
-	if (m_ShipAttribute.ShipMesh) {
-		// Spawn the actor from the class
-		ShipChildActor->SetChildActorClass(m_ShipAttribute.ShipMesh);
-		UE_LOG(LogTemp, Error, TEXT("valid Ship Class"));
-	}
-	else {
-		UE_LOG(LogTemp, Error, TEXT("Invalid Ship Class"));
-	}
+	m_AllowToFireMissle[WeaponSlot] = false;
+	m_CurrentWeaponAmmunitionAmount[WeaponSlot]--;
+
+	StartWeaponTimer(WeaponSlot);
 }
 
 
