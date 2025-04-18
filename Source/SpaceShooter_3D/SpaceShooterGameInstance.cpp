@@ -3,3 +3,13 @@
 
 #include "SpaceShooterGameInstance.h"
 
+void USpaceShooterGameInstance::SetPlayerShipType(EShipType NewType)
+{
+	PlayerShipType = NewType;
+
+}
+
+EShipType USpaceShooterGameInstance::GetPlayerShipType() const
+{
+	return PlayerShipType;
+}

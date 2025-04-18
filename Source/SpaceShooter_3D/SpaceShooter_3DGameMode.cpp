@@ -20,6 +20,13 @@ FShipAttribute ASpaceShooter_3DGameMode::GetAttribute(const EShipType& ShipToUse
 		return FShipAttribute();
 	}
 	FString ShipString = UEnum::GetValueAsString(ShipToUse);
+	int index;
+	if (ShipString.FindLastChar(':', index))
+	{
+		ShipString = ShipString.Mid(index + 1); 
+	
+	}
+
 	const FShipAttribute* data = ShipData->FindRow<FShipAttribute>(FName(ShipString), TEXT("Searching Ship data from data table"));
 
 	if (!data) {

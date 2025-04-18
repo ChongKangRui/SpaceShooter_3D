@@ -93,8 +93,8 @@ void ASpaceShip_PlayerController::OnPossess(APawn* p)
 		SetInputMode(FInputModeGameOnly());
 
 		/*Rotation Value Setup*/
-		m_PitchValue = m_Player->GetActorRotation().Pitch;
-		m_YawValue = m_Player->GetActorRotation().Yaw;
+		m_PitchValue = 0;
+		m_YawValue = 0;
 	}
 }
 
@@ -137,6 +137,8 @@ void ASpaceShip_PlayerController::Move(const FInputActionValue& Value)
 	const FVector RightDirection = LeftRightDirection();
 	const FVector ForwardDirection = ForwardBackDirection();;
 
+
+	//UE_LOG(LogTemp, Error, TEXT("Movementvector %s"), *MovementVector.ToString())
 	// add movement 
 	//m_Player->AddMovementInput(ForwardDirection, MovementVector.Y);
 	//m_Player->AddMovementInput(RightDirection, MovementVector.X);
@@ -150,6 +152,13 @@ void ASpaceShip_PlayerController::Move(const FInputActionValue& Value)
 	else if (MovementVector.Y < 0.0f) // S key pressed (stop/decelerate instead of backward)
 	{
 		m_Player->GetCharacterMovement()->BrakingDecelerationFlying = FMath::Clamp(m_Player->GetCharacterMovement()->BrakingDecelerationFlying + 2.0f, 0, 500);
+	}
+
+	if (MovementVector.X > 0.1f) {
+		m_Player->AddActorLocalRotation(FRotator(0,0, m_Player->RotationRate));
+	}
+	else if (MovementVector.X < -0.1f) {
+		m_Player->AddActorLocalRotation(FRotator(0, 0, -m_Player->RotationRate));
 	}
 
 }

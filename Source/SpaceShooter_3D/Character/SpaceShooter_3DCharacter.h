@@ -19,14 +19,14 @@ class UPaperSprite;
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 UENUM(Blueprintable)
-enum EShipType {
+enum class EShipType : uint8{
 	GoldenVector,
 	o_100,
 	SpaceShip3
 };
 
 UENUM(Blueprintable)
-enum EWeaponType {
+enum class EWeaponType : uint8 {
 	Light,
 	Heavy
 };
@@ -108,6 +108,8 @@ public:
 
 };
 
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBulletHit);
 UCLASS(config=Game)
 class ASpaceShooter_3DCharacter : public ACharacter
 {
@@ -135,10 +137,10 @@ public:
 	float GetCurrentHealth() const;
 
 	UFUNCTION(BlueprintPure)
-	float GetCurrentWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const;
+	float GetCurrentWeaponAmmunition(EWeaponType weaponType) const;
 
 	UFUNCTION(BlueprintPure)
-	float GetMaxWeaponAmmunition(TEnumAsByte<EWeaponType> weaponType) const;
+	float GetMaxWeaponAmmunition(EWeaponType weaponType) const;
 
 
 
@@ -152,17 +154,30 @@ public:
 	void SwitchWeapon(const EWeaponType ArmorSlot);
 
 public:
+	
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true"))
 	bool bRandomizeMesh = false;
 
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true"))
+	bool IsPlayer = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true"))
+	bool bDebugHeavyWeapon = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true", EditCondition = "bRandomizeMesh = false"))
-	TEnumAsByte<EShipType> ShipType = EShipType::GoldenVector;
+	EShipType ShipType = EShipType::GoldenVector;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AIAgent, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UAStarAgentComponent> AgentComponent;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = ChildACtor, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UChildActorComponent> ShipChildActor;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnBulletHit OnBulletHit;
 
 
 protected:
@@ -176,6 +191,7 @@ protected:
 	/*This will mainly just used for AI*/
 	virtual AActor* GetMissleTrackEnemy() const;
 	virtual void BeginPlay() override;
+	virtual void Tick(float delta) override;
 	
 	/*MissleSlot was refer to which missle to shoot*/
 
@@ -186,6 +202,8 @@ protected:
 	bool IsAmmoOut(const EWeaponType WeaponSlot) const;
 	void StartWeaponTimer(const EWeaponType WeaponSlot);
 
+	void UpdateLaserRotation(const EWeaponType WeaponSlot);
+
 private:
 	//void DataTableAssetInitialization();
 
@@ -194,6 +212,11 @@ private:
 	TArray<USceneComponent*> m_LightWeaponFirePoint;
 	//Heavy Armor
 	TArray<USceneComponent*> m_HeavyWeaponFirePoint;
+
+	FRotator RelativeRotation_LFP;
+	FRotator RelativeRotation_HFP;
+	
+
 	TArray<ALaserBase*> m_LaserInstance;
 
 	FTimerHandle m_LightWeaponReload_Timer;
@@ -201,14 +224,17 @@ private:
 
 	TArray<TSubclassOf<AActor>> m_ShipMeshArray;
 
-	TMap<TEnumAsByte<EWeaponType>, int> m_CurrentWeaponAmmunitionAmount;
-	TMap<TEnumAsByte<EWeaponType>, bool> m_AllowToFireMissle;
+	TMap<EWeaponType, int> m_CurrentWeaponAmmunitionAmount;
+	TMap<EWeaponType, bool> m_AllowToFireMissle;
 	
 
 	FShipAttribute m_ShipAttribute;
 	//TObjectPtr<UDataTable> m_DataTableAsset;
 	TWeakObjectPtr<UNiagaraComponent> m_LaserVFXInstance;
 
+	FVector m_PreviousLaserShootDir;
+
+	
 
 	float m_CurrentHealth;
 

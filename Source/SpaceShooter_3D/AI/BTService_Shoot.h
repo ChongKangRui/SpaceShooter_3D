@@ -44,4 +44,6 @@ private:
 
 	float m_CurrentHWTimer;
 	float m_CurrentHWShootDuration;
+
+	bool m_ShootLaser;
 };

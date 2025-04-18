@@ -52,8 +52,9 @@ void AShipProjectile::Tick(float Delta)
 void AShipProjectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (OtherActor && OtherActor != GetOwner() && OtherActor != GetInstigator()) {
-		UE_LOG(LogTemp, Error, TEXT("OtherActor: %s, Other Component: %s"), *OtherActor->GetName(), *OtherComp->GetName());
-		UGameplayStatics::ApplyDamage(OtherActor, m_Damage, GetInstigatorController(), GetOwner(), nullptr);
+		//UE_LOG(LogTemp, Error, TEXT("OtherActor: %s, Other Component: %s"), *OtherActor->GetName(), *OtherComp->GetName());
+		//UE_LOG(LogTemp, Error, TEXT("Projectile Owner %s"), *GetOwner()->GetName());
+		UGameplayStatics::ApplyDamage(OtherActor, m_Damage, GetInstigatorController(), GetInstigator(), nullptr);
 		if (m_HitEffect)
 		{
 			// Define where to spawn the system

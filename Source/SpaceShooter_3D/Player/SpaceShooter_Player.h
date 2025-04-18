@@ -70,6 +70,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Flight, meta = (AllowPrivateAccess = "true"))
 	float FlightRollTilt = 10.0f;
 
+	/*Rotation rate when pressing A and D*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Mesh, meta = (AllowPrivateAccess = "true"))
+	float RotationRate = 1;
+
 private:
 	void UpdateCameraSetting();
 	void UpdateRotationSmoothly(FRotator Target, float ConstantSpeed, float SmoothSpeed);

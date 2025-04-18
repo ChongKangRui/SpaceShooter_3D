@@ -22,7 +22,7 @@ ALaserBase::ALaserBase()
 void ALaserBase::InitializeLifeTime(float lifeTime)
 {
 	NiagaraEffect->SetFloatParameter(TEXT("User.RayLifeTime"), lifeTime);
-	
+	UE_LOG(LogTemp, Error, TEXT("LifeTime %f"), lifeTime);
 	SetLaserLength(10000);
 }
 
@@ -30,5 +30,6 @@ void ALaserBase::SetLaserLength(float length)
 {
 	//NiagaraEffect->SetRelativeScale3D(FVector(length,1.0,1.0));
 	NiagaraEffect->SetFloatParameter(TEXT("User.Length"), length/ DivideScale);
+	UE_LOG(LogTemp, Error, TEXT("LifeTime %f"), length);
 	//NiagaraEffect->SetWorldScale3D(FVector(length,1.0, 1.0));
 }

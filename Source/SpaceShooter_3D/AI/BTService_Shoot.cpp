@@ -56,18 +56,26 @@ void UBTService_Shoot::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 			if(!DisableNormalAttack)
 				m_OwnerCharacter->FireWeapon(EWeaponType::Light);
 
-			if (m_CurrentHWTimer >= m_HeavyWeaponCD) {
+			if (m_CurrentHWTimer >= m_HeavyWeaponCD && !m_OwnerCharacter->GetIsWeaponLaser(EWeaponType::Heavy)) {
 				ShootHeavyWeapon();
+			}
+			else {
+				m_ShootLaser = true;
 			}
 		}
 		else {
-			if (m_OwnerCharacter->GetIsWeaponLaser(EWeaponType::Heavy)) {
+			if (!m_OwnerCharacter->GetIsWeaponLaser(EWeaponType::Heavy)) {
 				m_OwnerCharacter->StopWeapon(EWeaponType::Heavy);
 				UE_LOG(LogTemp, Error, TEXT("stop laser"));
 			}
 			
 		}
 
+		if (m_ShootLaser) {
+			ShootHeavyWeapon();
+
+			
+		}
 
 	}
 	
@@ -84,5 +92,7 @@ void UBTService_Shoot::ShootHeavyWeapon()
 
 		m_HeavyWeaponCD = FMath::RandRange(FrequencyOfHeavyWeaponAttack.X, FrequencyOfHeavyWeaponAttack.Y);
 		m_HeavyWeaponShootDuration = FMath::RandRange(DurationOfHeavyWeaponShooting.X, DurationOfHeavyWeaponShooting.Y);
+
+		m_ShootLaser = false;
 	}
 }
